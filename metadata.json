@@ -1,6 +1,0 @@
-{
-  "name": "Portal de Permutas",
-  "description": "Formulário de Permuta de Serviço Oficial da 2ª Companhia / 10º Batalhão PMMA",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
