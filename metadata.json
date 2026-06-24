@@ -1,0 +1,6 @@
+{
+  "name": "Portal de Permuta de Serviço",
+  "description": "Formulário de Permuta de Serviço Oficial da 2ª Companhia de Polícia Militar do Maranhão.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
