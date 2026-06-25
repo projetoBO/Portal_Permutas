@@ -29,7 +29,8 @@ import {
   ShieldCheck,
   TrendingUp,
   LayoutGrid,
-  ExternalLink
+  ExternalLink,
+  Smartphone
 } from 'lucide-react';
 import { getFirebase } from '@/lib/firebase';
 import { 
@@ -112,10 +113,37 @@ export default function Home() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [loginPassword, setLoginPassword] = useState("");
 
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallInstructions, setShowInstallInstructions] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult: any) => {
+        if (choiceResult.outcome === 'accepted') {
+          setDeferredPrompt(null);
+        }
+      });
+    } else {
+      setShowInstallInstructions(true);
+    }
+  };
+
   const [localizacao, setLocalizacao] = useState("TURIAÇU");
   const [pmSubstituido, setPmSubstituido] = useState({ nome: "", id: "" });
   const [pmSubstituto, setPmSubstituto] = useState({ nome: "", id: "" });
-  const [comandante, setComandante] = useState("JOSE RIBAMAR BRAGA JUNIOR - 1º TEN QOEM");
+  const [comandante, setComandante] = useState("JOSE RIBAMAR BRAGA JUNIOR - 1º TEN QOPM");
   const [noPagamento, setNoPagamento] = useState(false);
   const [tipoServico, setTipoServico] = useState("24H");
 
@@ -467,65 +495,59 @@ export default function Home() {
     <div className="min-h-screen flex flex-col lg:flex-row bg-[#0f172a] text-slate-200">
       
       {/* 1. SEÇÃO DE IMPRESSÃO REAL (Oculta na tela, visível apenas no comando print) */}
-      <div className="hidden print:block w-[100%] max-w-[800px] text-black bg-white font-serif mx-auto p-4 leading-relaxed text-[12pt]">
+      <div className="hidden print:block w-[100%] max-w-[800px] text-black bg-white font-serif mx-auto p-6 leading-relaxed text-[11pt]">
         <div className="text-center flex flex-col items-center">
           <img 
             src="https://i.ibb.co/WvgB63VR/bras-o-pm.png" 
             alt="Brasão PMMA" 
-            className="w-[90px] h-[110px] object-contain mb-3"
+            className="w-[80px] h-[95px] object-contain mb-3"
             referrerPolicy="no-referrer"
           />
-          <p className="font-bold uppercase text-[12pt] m-0 tracking-wide">Estado do Maranhão</p>
-          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">Secretaria de Segurança Pública</p>
-          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">CPA/I-5 – 10º BPM</p>
-          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">10º Batalhão da Polícia Militar do Maranhão</p>
-          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">2ª Companhia do 10° Batalhão de Polícia Militar</p>
-          <p className="text-[9pt] italic m-0 text-gray-500">Rua Dr. Paulo Ramos, s/nº, Centro, Santa Helena - MA, Telefax: (98) 99243-6850 - Email: 2cia10bpm@gmail.com</p>
-          <p className="font-bold text-[12pt] mt-8 mb-6 uppercase tracking-tight border-b-2 border-black pb-2 w-full">
+          <p className="font-bold uppercase text-[11pt] m-0 tracking-wide">Estado do Maranhão</p>
+          <p className="text-[10pt] uppercase m-0 font-semibold text-gray-800">Secretaria de Segurança Pública</p>
+          <p className="text-[10pt] uppercase m-0 font-semibold text-gray-800">CPA/I-5 – 10º BPM</p>
+          <p className="text-[10pt] uppercase m-0 font-semibold text-gray-800">10º Batalhão da Polícia Militar do Maranhão</p>
+          <p className="text-[10pt] uppercase m-0 font-semibold text-gray-800">2ª Companhia do 10° Batalhão de Polícia Militar</p>
+          <p className="text-[8pt] italic m-0 text-gray-500">Rua Dr. Paulo Ramos, s/nº, Centro, Santa Helena - MA, Telefax: (98) 99243-6850 - Email: 2cia10bpm@gmail.com</p>
+          <p className="font-bold text-[11.5pt] mt-6 mb-5 uppercase tracking-wide border-b-2 border-black pb-1.5 w-full">
             Formulário de Autorização para Permuta de Serviço
           </p>
         </div>
 
-        <div className="my-6 text-[12pt] font-semibold">
-          <p className="flex justify-between w-full max-w-2xl">
+        <div className="my-4 text-[11pt] font-bold">
+          <p className="flex justify-between w-full max-w-2xl m-0">
             <span>SEDE: ( {localizacaoSede} )</span>
             <span>DPM TURILÂNDIA: ( {localizacaoTurilandia} )</span>
             <span>DPM TURIAÇU: ( {localizacaoTuriacu} )</span>
           </p>
         </div>
 
-        <div className="mt-8 space-y-6">
-          <div className="border border-black p-4 rounded-sm">
-            <p className="font-bold uppercase m-0 text-[11pt]">PM Substituído:</p>
-            <p className="text-[12pt] mt-1 font-semibold">{pmSubstituido.nome.toUpperCase()} - ID/Matrícula: {pmSubstituido.id || 'N/A'}</p>
-            <div className="mt-12 flex justify-between items-end">
-              <span className="text-[10pt]">Data: ____/____/______</span>
-              <div className="text-center w-1/2">
-                <div className="border-t border-black w-full" />
-                <p className="text-[10pt] uppercase font-bold mt-1">Assinatura do PM Substituído</p>
-              </div>
-            </div>
+        <div className="mt-6 space-y-4 text-[11pt]">
+          <div className="border border-black/10 p-3 rounded-sm">
+            <p className="font-bold uppercase m-0">
+              PM SUBSTITUÍDO: {pmSubstituido.nome ? `${pmSubstituido.nome.toUpperCase()}${pmSubstituido.id ? ` - ${pmSubstituido.id}` : ''}` : '_______________________________________________________'}
+            </p>
+            <p className="mt-4 mb-0">
+              Assinatura: _______________________________________________________
+            </p>
           </div>
 
-          <div className="border border-black p-4 rounded-sm">
-            <p className="font-bold uppercase m-0 text-[11pt]">PM Substituto:</p>
-            <p className="text-[12pt] mt-1 font-semibold">{pmSubstituto.nome.toUpperCase()} - ID/Matrícula: {pmSubstituto.id || 'N/A'}</p>
-            <div className="mt-12 flex justify-between items-end">
-              <span className="text-[10pt]">Data: ____/____/______</span>
-              <div className="text-center w-1/2">
-                <div className="border-t border-black w-full" />
-                <p className="text-[10pt] uppercase font-bold mt-1">Assinatura do PM Substituto</p>
-              </div>
-            </div>
+          <div className="border border-black/10 p-3 rounded-sm">
+            <p className="font-bold uppercase m-0">
+              PM SUBSTITUTO: {pmSubstituto.nome ? `${pmSubstituto.nome.toUpperCase()}${pmSubstituto.id ? ` - ${pmSubstituto.id}` : ''}` : '_______________________________________________________'}
+            </p>
+            <p className="mt-4 mb-0">
+              Assinatura: _______________________________________________________
+            </p>
           </div>
         </div>
 
-        <div className="mt-6 border border-black p-4 rounded-sm space-y-3">
-          <p className="text-[12pt]"><span className="font-bold">Data do serviço permutado:</span> {servicoTexto || '____/____/______'}</p>
-          <p className="text-[12pt]"><span className="font-bold">Data do pagamento do serviço:</span> {pagamentoTexto || 'SA'}</p>
+        <div className="mt-5 border border-black/10 p-3 rounded-sm space-y-1.5">
+          <p className="text-[11pt] m-0"><span className="font-bold">Data do serviço permutado:</span> {servicoTexto || '____/____/______'}</p>
+          <p className="text-[11pt] m-0"><span className="font-bold">Data do pagamento do serviço:</span> {pagamentoTexto || 'SA'}</p>
         </div>
 
-        <div className="mt-6 flex flex-wrap justify-between text-[11pt] font-semibold border border-black p-3 bg-gray-50/50">
+        <div className="mt-4 flex flex-wrap justify-between text-[10.5pt] font-semibold border border-black/10 p-2.5 bg-gray-50/50">
           <span>( {tipo1QTU} ) 1º QTU</span>
           <span>( {tipo2QTU} ) 2º QTU</span>
           <span>( {tipo24} ) 24 Horas</span>
@@ -533,17 +555,17 @@ export default function Home() {
           <span>( {tipo72} ) 72 Horas</span>
         </div>
 
-        <div className="mt-10 border-2 border-dashed border-black p-6 rounded-sm text-center">
-          <p className="font-bold text-[12pt]">AUTORIZO A PERMUTA ENTRE OS POLICIAIS MILITARES ACIMA RELACIONADOS:</p>
-          <p className="font-bold text-[13pt] mt-2 flex justify-center gap-12">
+        <div className="mt-6 p-4 text-center">
+          <p className="font-bold text-[11pt] m-0">AUTORIZO A PERMUTA ENTRE OS POLICIAIS MILITARES ACIMA RELACIONADOS:</p>
+          <p className="font-bold text-[11pt] mt-2 flex justify-center gap-12 m-0">
             <span>( &nbsp; ) SIM</span>
             <span>( &nbsp; ) NÃO</span>
           </p>
           
-          <div className="mt-16 flex flex-col items-center">
+          <div className="mt-14 flex flex-col items-center">
             <div className="border-t border-black w-3/4 max-w-md" />
-            <p className="font-bold text-[12pt] uppercase mt-2 mb-0 tracking-wide text-center">{comandante.toUpperCase()}</p>
-            <p className="text-[10pt] uppercase font-bold text-gray-600 m-0 text-center">Comandante da 2ª CP/10º BPM</p>
+            <p className="font-bold text-[11pt] uppercase mt-2 mb-0 tracking-wide text-center">{comandante.toUpperCase()}</p>
+            <p className="text-[9.5pt] uppercase font-bold text-gray-700 m-0 text-center">Comandante da 2ª CP/10º BPM</p>
           </div>
         </div>
       </div>
@@ -558,39 +580,18 @@ export default function Home() {
               PM
             </div>
             <div>
-              <h1 className="text-lg font-black tracking-tight text-white leading-none">PermutaPro</h1>
+              <h1 className="text-lg font-black tracking-tight text-white leading-none">PORTAL DE PERMUTAS</h1>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">2ª CP / 10º BPM MA</p>
             </div>
           </div>
 
-          <nav className="space-y-2.5 flex-1">
-            <div className="p-3.5 bg-blue-600/10 border border-blue-500/20 rounded-2xl text-blue-400 font-bold flex items-center gap-3 text-sm">
-              <LayoutGrid size={18} />
-              Portal de Permuta
-            </div>
-            
+          <nav className="space-y-3.5 flex-1">
             <button 
-              onClick={() => setShowAdminLogin(true)}
-              className="w-full p-3.5 hover:bg-slate-800/60 rounded-2xl text-slate-400 hover:text-slate-200 transition-all flex items-center gap-3 text-sm font-semibold"
+              onClick={handleInstallClick}
+              className="w-full p-4 bg-gradient-to-r from-blue-600/15 to-indigo-600/15 hover:from-blue-600/25 hover:to-indigo-600/25 border border-blue-500/20 hover:border-blue-500/40 rounded-2xl text-blue-400 hover:text-blue-300 transition-all flex items-center justify-center gap-3 text-sm font-bold cursor-pointer shadow-md shadow-blue-500/5"
             >
-              <Settings size={18} />
-              Gerenciar Escala
-            </button>
-
-            <button 
-              onClick={() => window.open('https://sso.acesso.gov.br/login', '_blank')}
-              className="w-full p-3.5 hover:bg-slate-800/60 rounded-2xl text-slate-400 hover:text-slate-200 transition-all flex items-center gap-3 text-sm font-semibold text-left"
-            >
-              <ExternalLink size={18} />
-              Acessar GOV.BR
-            </button>
-
-            <button 
-              onClick={() => window.open('https://projetobo.github.io/portal-2CIA/home.html', '_blank')}
-              className="w-full p-3.5 hover:bg-slate-800/60 rounded-2xl text-slate-400 hover:text-slate-200 transition-all flex items-center gap-3 text-sm font-semibold text-left"
-            >
-              <HomeIcon size={18} />
-              Voltar ao Início
+              <Smartphone size={18} />
+              Instalar no Celular
             </button>
           </nav>
 
@@ -642,7 +643,7 @@ export default function Home() {
           <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/30 border border-slate-800/40 p-6 rounded-[2rem]">
             <div>
               <h2 className="text-2xl font-black text-white font-display">Olá, Policial Militar</h2>
-              <p className="text-slate-400 text-sm mt-0.5">Formulário Oficial de Permuta de Escala — Unidade Santa Helena.</p>
+              <p className="text-slate-400 text-sm mt-0.5">Formulário Oficial de Permuta de Escala</p>
             </div>
             <div className="flex items-center gap-3 w-full md:w-auto">
               <div className="relative shrink-0">
@@ -664,6 +665,14 @@ export default function Home() {
                 <ShieldCheck size={14} className="text-blue-400" />
                 10º BPM MA
               </div>
+
+              <button 
+                onClick={() => setShowAdminLogin(true)}
+                className="p-2.5 bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-white rounded-xl transition-all border border-slate-700 cursor-pointer flex items-center justify-center shrink-0"
+                title="Gerenciar Escala"
+              >
+                <Settings size={18} />
+              </button>
             </div>
           </header>
 
@@ -943,21 +952,45 @@ export default function Home() {
 
             {/* CARD 7: PAINEL DE CONCLUSÃO & PRINT (FULL WIDTH DA GRID) */}
             <div className="md:col-span-2 lg:col-span-3 bg-gradient-to-r from-blue-900/40 to-slate-900/50 border border-blue-800/40 rounded-[2.5rem] p-6 sm:p-8 flex flex-col lg:flex-row justify-between items-center gap-6">
-              <div className="space-y-2 text-center lg:text-left">
-                <h3 className="text-xl font-black text-white font-display">Tudo pronto para imprimir?</h3>
-                <p className="text-slate-300 text-sm max-w-2xl">
-                  Ao concluir, um formulário oficial formatado nas normas da PMMA será gerado. Certifique-se de recolher as assinaturas dos militares após a impressão física do arquivo.
-                </p>
+              <div className="space-y-4 text-center lg:text-left w-full lg:flex-1">
+                <div>
+                  <h3 className="text-xl font-black text-white font-display">Tudo pronto para imprimir?</h3>
+                  <p className="text-slate-300 text-sm max-w-2xl mt-1">
+                    Ao concluir, um formulário PDF será gerado. Certifique-se de recolher as assinaturas dos militares.
+                  </p>
+                </div>
                 
-                {/* Resumo visual do formulário */}
-                {pmSubstituido.nome && pmSubstituto.nome && serviceDates.start && (
-                  <div className="mt-4 p-3 bg-slate-950/50 rounded-2xl border border-slate-800/60 inline-flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300">
-                    <div><span className="font-bold text-slate-500">Permuta:</span> {pmSubstituido.nome} ➔ {pmSubstituto.nome}</div>
-                    <div><span className="font-bold text-slate-500">Data:</span> {servicoTexto}</div>
-                    <div><span className="font-bold text-slate-500">Devolução:</span> {pagamentoTexto}</div>
-                    <div><span className="font-bold text-slate-500">Escala:</span> {tipoServico}</div>
+                {/* Resumo detalhado e estruturado das informações preenchidas */}
+                <div className="p-4 bg-slate-950/60 rounded-2xl border border-slate-800/60 text-xs text-left grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 w-full max-w-2xl">
+                  <div className="flex justify-between items-center border-b border-slate-800/30 pb-2 sm:pb-0 sm:border-0">
+                    <span className="text-slate-500 font-bold">PM Substituído:</span>
+                    <span className={pmSubstituido.nome ? "text-slate-200 font-semibold text-right" : "text-amber-500 italic font-semibold text-right"}>
+                      {pmSubstituido.nome ? `${pmSubstituido.nome.toUpperCase()} (${pmSubstituido.id || 'N/A'})` : "Pendente"}
+                    </span>
                   </div>
-                )}
+                  <div className="flex justify-between items-center border-b border-slate-800/30 pb-2 sm:pb-0 sm:border-0">
+                    <span className="text-slate-500 font-bold">PM Substituto:</span>
+                    <span className={pmSubstituto.nome ? "text-slate-200 font-semibold text-right" : "text-amber-500 italic font-semibold text-right"}>
+                      {pmSubstituto.nome ? `${pmSubstituto.nome.toUpperCase()} (${pmSubstituto.id || 'N/A'})` : "Pendente"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-slate-800/30 pb-2 sm:pb-0 sm:border-0">
+                    <span className="text-slate-500 font-bold">Data do Serviço:</span>
+                    <span className={serviceDates.start ? "text-slate-200 font-semibold text-right" : "text-amber-500 italic font-semibold text-right"}>
+                      {serviceDates.start ? servicoTexto : "Pendente"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500 font-bold">Pagamento/Devolução:</span>
+                    <span className={noPagamento || paymentDates.start ? "text-slate-200 font-semibold text-right" : "text-amber-500 italic font-semibold text-right"}>
+                      {noPagamento ? "Sem Devolução (SA)" : (paymentDates.start ? pagamentoTexto : "Pendente")}
+                    </span>
+                  </div>
+                  <div className="sm:col-span-2 border-t border-slate-800/60 pt-2.5 flex justify-between items-center text-[11px]">
+                    <span className="text-slate-500 font-bold">Escala / Localização:</span>
+                    <span className="text-blue-400 font-bold uppercase">{tipoServico} em DPM {localizacao}</span>
+                  </div>
+                </div>
               </div>
 
               <div className="shrink-0 w-full lg:w-auto flex flex-col sm:flex-row gap-3">
@@ -974,8 +1007,17 @@ export default function Home() {
           </div>
 
           {/* RODAPÉ DO WORKSPACE */}
-          <footer className="text-center py-6 text-slate-600 text-[10px] font-black uppercase tracking-[0.3em] border-t border-slate-800/30 mt-6">
-            Portal 2ª Companhia / 10º Batalhão PMMA
+          <footer className="text-center py-6 border-t border-slate-800/30 mt-6 flex flex-col items-center gap-4">
+            <button 
+              onClick={() => window.open('https://sso.acesso.gov.br/login', '_blank')}
+              className="px-5 py-2.5 bg-slate-900/60 hover:bg-slate-850 hover:text-slate-200 border border-slate-800 hover:border-slate-700 rounded-xl text-slate-400 transition-all flex items-center gap-2.5 text-xs font-semibold cursor-pointer shadow-sm"
+            >
+              <ExternalLink size={14} />
+              Acessar GOV.BR
+            </button>
+            <div className="text-slate-600 text-[10px] font-black uppercase tracking-[0.3em]">
+              Portal 2ª Companhia / 10º Batalhão PMMA
+            </div>
           </footer>
         </main>
       </div>
@@ -1207,6 +1249,65 @@ export default function Home() {
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-xs active:scale-95 transition-all shadow-lg shadow-blue-500/25"
               >
                 Entendido
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL DE INSTRUÇÕES DE INSTALAÇÃO MÓVEL --- */}
+      <AnimatePresence>
+        {showInstallInstructions && (
+          <div className="fixed inset-0 bg-black/80 z-[300] flex items-center justify-center p-4 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              className="bg-slate-900 p-7 rounded-3xl shadow-2xl max-w-md w-full border border-slate-800 text-left"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-bold flex items-center gap-2 text-white">
+                  <Smartphone className="text-blue-500" /> Instalar no Celular
+                </h3>
+                <button 
+                  onClick={() => setShowInstallInstructions(false)} 
+                  className="p-1 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="space-y-4 text-xs text-slate-300 leading-relaxed mb-6">
+                <p>
+                  Você pode instalar o <strong className="text-white">PORTAL DE PERMUTAS</strong> em seu smartphone para acessá-lo rapidamente como um aplicativo nativo.
+                </p>
+                
+                <div className="p-3.5 bg-slate-950/40 border border-slate-800 rounded-xl">
+                  <p className="font-bold text-white mb-1.5 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-[10px]">1</span>
+                    No Android (Chrome):
+                  </p>
+                  <p className="pl-6 text-slate-400">
+                    Clique no ícone de três pontos <span className="text-white font-bold">⋮</span> no canto superior direito e selecione <span className="text-white font-bold">"Adicionar à tela inicial"</span> ou <span className="text-white font-bold">"Instalar aplicativo"</span>.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-950/40 border border-slate-800 rounded-xl">
+                  <p className="font-bold text-white mb-1.5 flex items-center gap-1.5">
+                    <span className="w-5 h-5 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-[10px]">2</span>
+                    No iOS / iPhone (Safari):
+                  </p>
+                  <p className="pl-6 text-slate-400">
+                    Toque no botão de Compartilhar <span className="text-white font-bold">⎋</span> (ícone de quadrado com seta para cima) na barra inferior e selecione <span className="text-white font-bold">"Adicionar à Tela de Início"</span>.
+                  </p>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowInstallInstructions(false)} 
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-xs active:scale-95 transition-all shadow-lg shadow-blue-500/25 cursor-pointer"
+              >
+                Fechar
               </button>
             </motion.div>
           </div>
