@@ -1,390 +1,288 @@
 'use client';
 
-import React, { useState, useEffect, Component, ReactNode } from 'react';
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
-import 'firebase/compat/firestore';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Settings, 
+  Check, 
+  Pencil, 
+  Home as HomeIcon, 
+  Plus,  
+  Trash2, 
+  X, 
+  Lock, 
+  ChevronLeft, 
+  ChevronRight, 
+  ArrowUp, 
+  ArrowDown, 
+  Save, 
+  AlertCircle,
+  FileText,
+  Printer,
+  FileSignature,
+  Database,
+  Wifi,
+  WifiOff,
+  UserCheck,
+  CalendarDays,
+  Clock,
+  ShieldCheck,
+  TrendingUp,
+  LayoutGrid,
+  ExternalLink
+} from 'lucide-react';
+import { getFirebase } from '@/lib/firebase';
+import { 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  updateDoc, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 
-// --- SISTEMA DE PROTEÇÃO CONTRA TELA AZUL ---
-interface ErrorBoundaryProps {
-  children: ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-  
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("Erro capturado pelo sistema:", error, errorInfo);
-  }
-  
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-[#483D8B] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-3xl shadow-xl max-w-xl w-full text-center">
-            <h1 className="text-red-600 font-bold text-2xl mb-4">⚠️ Erro de Carregamento</h1>
-            <p className="text-gray-700 mb-4">Houve uma falha interna. Mas não se preocupe, o site não travou por completo.</p>
-            <div className="bg-gray-100 p-4 rounded-lg overflow-auto text-xs text-red-800 font-mono mb-6 text-left">
-              {this.state.error && this.state.error.toString()}
-            </div>
-            <button onClick={() => window.location.reload()} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Recarregar Página</button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-// --- LISTA FIXA DE MILITARES (BACKUP) ---
-interface Militar {
-  nome: string;
-  idMilitar: string;
-  ordem?: number;
-  idDoc?: string;
-}
-
-const LISTA_INICIAL: Militar[] = [
-  { nome: "Cb PM 562/14 Edmilson", idMilitar: "N/A" },
-  { nome: "Cb PM 626/14 Coriolano", idMilitar: "N/A" },
-  { nome: "Cb PM 636/14 Massole", idMilitar: "N/A" },
-  { nome: "Cb PM 915/14 Froes", idMilitar: "N/A" },
-  { nome: "Cb PM 1042/14 Mário Neto", idMilitar: "N/A" },
-  { nome: "Cb PM 274/15 J. Froes", idMilitar: "N/A" },
-  { nome: "Cb PM 372/15 Cruz", idMilitar: "N/A" },
-  { nome: "Cb PM 196/16 Vasconcelos", idMilitar: "N/A" },
-  { nome: "Cb PM 473/16 André", idMilitar: "849351" },
-  { nome: "Sd PM 604/17 Élson", idMilitar: "N/A" },
-  { nome: "Sd PM 868/17 P. Souza", idMilitar: "N/A" },
-  { nome: "Sd PM 408/18 Ribeiro", idMilitar: "N/A" },
-  { nome: "Sd PM 424/18 Rodrigues", idMilitar: "N/A" },
-  { nome: "Sd PM 885/18 Albert", idMilitar: "871512" },
-  { nome: "Sd PM 1034/18 Francinilson", idMilitar: "N/A" },
-  { nome: "Sd PM 1083/18 Moise", idMilitar: "N/A" },
-  { nome: "Sd PM 10/20 Garcez", idMilitar: "N/A" },
-  { nome: "Sd PM 72/20 S. Filho", idMilitar: "N/A" },
-  { nome: "Sd PM 003/21 Maycon", idMilitar: "N/A" },
-  { nome: "Sd PM 006/21 Carvalho", idMilitar: "N/A" },
-  { nome: "Sd PM 171/22 Fonteles", idMilitar: "N/A" },
-  { nome: "Sd PM 380/22 Soares", idMilitar: "N/A" },
-  { nome: "Sd PM 429/22 Castro", idMilitar: "N/A" },
-  { nome: "Sd PM 502/22 Sales", idMilitar: "869293" },
-  { nome: "Sd PM 572/22 Theodósio", idMilitar: "871896" },
-  { nome: "Sd PM 246/24 Lobato", idMilitar: "N/A" },
-  { nome: "Sd PM 457/24 Eduardo Silva", idMilitar: "869987" }
-].sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))).map((m, i) => ({ ...m, ordem: i }));
+// --- LISTA FIXA DE MILITARES (BACKUP E FUNCIONAMENTO OFFLINE) ---
+const LISTA_INICIAL = [
+  { idDoc: "1", nome: "Cb PM 562/14 Edmilson", idMilitar: "N/A" },
+  { idDoc: "2", nome: "Cb PM 626/14 Coriolano", idMilitar: "N/A" },
+  { idDoc: "3", nome: "Cb PM 636/14 Massole", idMilitar: "N/A" },
+  { idDoc: "4", nome: "Cb PM 915/14 Froes", idMilitar: "N/A" },
+  { idDoc: "5", nome: "Cb PM 1042/14 Mário Neto", idMilitar: "N/A" },
+  { idDoc: "6", nome: "Cb PM 274/15 J. Froes", idMilitar: "N/A" },
+  { idDoc: "7", nome: "Cb PM 372/15 Cruz", idMilitar: "N/A" },
+  { idDoc: "8", nome: "Cb PM 196/16 Vasconcelos", idMilitar: "N/A" },
+  { idDoc: "9", nome: "Cb PM 473/16 André", idMilitar: "849351" },
+  { idDoc: "10", nome: "Sd PM 604/17 Élson", idMilitar: "N/A" },
+  { idDoc: "11", nome: "Sd PM 868/17 P. Souza", idMilitar: "N/A" },
+  { idDoc: "12", nome: "Sd PM 408/18 Ribeiro", idMilitar: "N/A" },
+  { idDoc: "13", nome: "Sd PM 424/18 Rodrigues", idMilitar: "N/A" },
+  { idDoc: "14", nome: "Sd PM 885/18 Albert", idMilitar: "871512" },
+  { idDoc: "15", nome: "Sd PM 1034/18 Francinilson", idMilitar: "N/A" },
+  { idDoc: "16", nome: "Sd PM 1083/18 Moise", idMilitar: "N/A" },
+  { idDoc: "17", nome: "Sd PM 10/20 Garcez", idMilitar: "N/A" },
+  { idDoc: "18", nome: "Sd PM 72/20 S. Filho", idMilitar: "N/A" },
+  { idDoc: "19", nome: "Sd PM 003/21 Maycon", idMilitar: "N/A" },
+  { idDoc: "20", nome: "Sd PM 006/21 Carvalho", idMilitar: "N/A" },
+  { idDoc: "21", nome: "Sd PM 171/22 Fonteles", idMilitar: "N/A" },
+  { idDoc: "22", nome: "Sd PM 380/22 Soares", idMilitar: "N/A" },
+  { idDoc: "23", nome: "Sd PM 429/22 Castro", idMilitar: "N/A" },
+  { idDoc: "24", nome: "Sd PM 502/22 Sales", idMilitar: "869293" },
+  { idDoc: "25", nome: "Sd PM 572/22 Theodósio", idMilitar: "871896" },
+  { idDoc: "26", nome: "Sd PM 246/24 Lobato", idMilitar: "N/A" },
+  { idDoc: "27", nome: "Sd PM 457/24 Eduardo Silva", idMilitar: "869987" }
+].sort((a, b) => a.nome.localeCompare(b.nome)).map((m, i) => ({ ...m, ordem: i }));
 
 const ADMIN_PASSWORD = "32573515";
 
-// --- COMPONENTES DE ÍCONES SVG ---
-interface IconProps {
-  name: string;
-  size?: number;
-  className?: string;
+interface Militar {
+  idDoc: string;
+  nome: string;
+  idMilitar: string;
+  ordem?: number;
 }
 
-const Icon: React.FC<IconProps> = ({ name, size = 20, className = "" }) => {
-  const icons: Record<string, React.ReactNode> = {
-    settings: (
-      <g>
-        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43-.25a2 2 0 0 1-1-1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-        <circle cx="12" cy="12" r="3" />
-      </g>
-    ),
-    check: <polyline points="20 6 9 17 4 12" />,
-    pen: (
-      <g>
-        <path d="M12 20h9" />
-        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-      </g>
-    ),
-    home: (
-      <g>
-        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-        <polyline points="9 22 9 12 15 12 15 22" />
-      </g>
-    ),
-    plus: (
-      <g>
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <line x1="5" y1="12" x2="19" y2="12" />
-      </g>
-    ),
-    trash: (
-      <g>
-        <polyline points="3 6 5 6 21 6" />
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-        <line x1="10" y1="11" x2="10" y2="17" />
-        <line x1="14" y1="11" x2="14" y2="17" />
-      </g>
-    ),
-    x: (
-      <g>
-        <line x1="18" y1="6" x2="6" y2="18" />
-        <line x1="6" y1="6" x2="18" y2="18" />
-      </g>
-    ),
-    lock: (
-      <g>
-        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-      </g>
-    ),
-    chevronLeft: <polyline points="15 18 9 12 15 6" />,
-    chevronRight: <polyline points="9 18 15 12 9 6" />,
-    arrowUp: (
-      <g>
-        <line x1="12" y1="19" x2="12" y2="5" />
-        <polyline points="5 12 12 5 19 12" />
-      </g>
-    ),
-    arrowDown: (
-      <g>
-        <line x1="12" y1="5" x2="12" y2="19" />
-        <polyline points="19 12 12 19 5 12" />
-      </g>
-    ),
-    save: (
-      <g>
-        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-        <polyline points="17 21 17 13 7 13 7 21" />
-        <polyline points="7 3 7 8 15 8" />
-      </g>
-    )
-  };
-
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      {icons[name]}
-    </svg>
-  );
-};
-
-interface CalendarState {
+interface DateState {
   start: Date | null;
   end: Date | null;
   currentMonth: Date;
 }
 
-function PortalForm() {
-  const [mounted, setMounted] = useState(false);
-  const [militares, setMilitares] = useState<Militar[]>([]);
-  const [db, setDb] = useState<firebase.firestore.Firestore | null>(null);
-  const [isOfflineMode, setIsOfflineMode] = useState(false);
+export default function Home() {
+  // --- ESTADO LOCAL ---
+  const [militares, setMilitares] = useState<Militar[]>(LISTA_INICIAL);
 
+  // Carregar do localStorage no mount (client-side only) para evitar hydration mismatch
+  useEffect(() => {
+    const saved = localStorage.getItem('portal_militares_lista');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+          setMilitares(parsed);
+        }
+      } catch (e) {
+        console.warn("Erro ao ler do localStorage no mount:", e);
+      }
+    }
+  }, []);
+
+  const [isOfflineMode, setIsOfflineMode] = useState(true);
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [loginPassword, setLoginPassword] = useState("");
-  
+
   const [localizacao, setLocalizacao] = useState("TURIAÇU");
   const [pmSubstituido, setPmSubstituido] = useState({ nome: "", id: "" });
   const [pmSubstituto, setPmSubstituto] = useState({ nome: "", id: "" });
   const [comandante, setComandante] = useState("JOSE RIBAMAR BRAGA JUNIOR - 1º TEN QOEM");
   const [noPagamento, setNoPagamento] = useState(false);
-  
   const [tipoServico, setTipoServico] = useState("24H");
 
-  const [serviceDates, setServiceDates] = useState<CalendarState>({ start: null, end: null, currentMonth: new Date() });
-  const [paymentDates, setPaymentDates] = useState<CalendarState>({ start: null, end: null, currentMonth: new Date() });
+  const [serviceDates, setServiceDates] = useState<DateState>({ 
+    start: null, 
+    end: null, 
+    currentMonth: new Date() 
+  });
+  const [paymentDates, setPaymentDates] = useState<DateState>({ 
+    start: null, 
+    end: null, 
+    currentMonth: new Date() 
+  });
   const [formAlert, setFormAlert] = useState<{ title: string; message: string } | null>(null);
 
+  // --- ESTADO DE EDIÇÃO (ADMIN) ---
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editIdMilitar, setEditIdMilitar] = useState("");
 
+  // --- INICIALIZAÇÃO E SINCRONIZAÇÃO DO FIREBASE ---
   useEffect(() => {
-    const handle = setTimeout(() => {
-      setMounted(true);
-    }, 0);
-    return () => clearTimeout(handle);
+    const { auth, db } = getFirebase();
+
+    if (!auth || !db) {
+      setIsOfflineMode(true);
+      return;
+    }
+
+    let unsubscribeFirestore: (() => void) | null = null;
+
+    const initAuthAndSync = async () => {
+      try {
+        await signInAnonymously(auth);
+        setIsOfflineMode(false);
+
+        const colRef = collection(db, 'militares_lista');
+        unsubscribeFirestore = onSnapshot(colRef, (snapshot) => {
+          const list = snapshot.docs.map(doc => ({ 
+            ...(doc.data() as Omit<Militar, 'idDoc'>), 
+            idDoc: doc.id 
+          }));
+
+          if (list.length > 0) {
+            const sortedList = list.sort((a, b) => {
+              const ordemA = typeof a.ordem === 'number' ? a.ordem : 9999;
+              const ordemB = typeof b.ordem === 'number' ? b.ordem : 9999;
+              if (ordemA !== ordemB) return ordemA - ordemB;
+              return (a.nome || "").localeCompare(b.nome || "");
+            });
+            setMilitares(sortedList);
+            localStorage.setItem('portal_militares_lista', JSON.stringify(sortedList));
+          } else if (!snapshot.metadata.fromCache) {
+            // Se o banco estiver vazio, popula com a lista inicial de forma assíncrona
+            LISTA_INICIAL.forEach(async (m) => {
+              await addDoc(colRef, { nome: m.nome, idMilitar: m.idMilitar, ordem: m.ordem });
+            });
+          }
+        }, (error) => {
+          console.warn("Aviso Firestore:", error);
+          setIsOfflineMode(true);
+        });
+      } catch (err) {
+        console.warn("Autenticação/Sincronização do Firebase falhou. Usando Modo Local Offline.", err);
+        setIsOfflineMode(true);
+      }
+    };
+
+    initAuthAndSync();
+
+    return () => {
+      if (unsubscribeFirestore) {
+        unsubscribeFirestore();
+      }
+    };
   }, []);
 
-  // --- 4. INICIALIZAÇÃO SEGURA DO FIREBASE COMPAT ---
+  // --- SALVAR EM LOCALSTORAGE NO MODO OFFLINE ---
   useEffect(() => {
-    if (!mounted) return;
-    try {
-      const config = {
-        apiKey: "AIzaSyAK5pxlxoaA37EGs3TRw1Q8F-9ghFw-o9w",
-        authDomain: "portaldepermutas.firebaseapp.com",
-        projectId: "portaldepermutas",
-        storageBucket: "portaldepermutas.firebasestorage.app",
-        messagingSenderId: "496739921207",
-        appId: "1:496739921207:web:04ceef2d6a4d8679937eb2",
-        measurementId: "G-JBKLB3DDG1"
-      };
-
-      // Inicia o firebase globalmente
-      if (!firebase.apps.length) {
-        firebase.initializeApp(config);
-      }
-      
-      const firestoreDb = firebase.firestore();
-      setTimeout(() => {
-        setDb(firestoreDb);
-      }, 0);
-
-      firebase.auth().signInAnonymously()
-        .then(() => {
-          setTimeout(() => {
-            setIsOfflineMode(false);
-          }, 0);
-        })
-        .catch((error) => {
-          console.error("Erro na autenticação anônima:", error);
-          setTimeout(() => {
-            setIsOfflineMode(true);
-          }, 0);
-        });
-    } catch (e) {
-      console.error("Entrando em Modo Offline devido a:", e);
-      setTimeout(() => {
-        setIsOfflineMode(true);
-        setMilitares(LISTA_INICIAL.map((m, i) => ({ ...m, idDoc: `local-${i}` })));
-      }, 0);
+    if (isOfflineMode) {
+      localStorage.setItem('portal_militares_lista', JSON.stringify(militares));
     }
-  }, [mounted]);
+  }, [militares, isOfflineMode]);
 
-  // --- ESCUTA DE DADOS DO FIRESTORE ---
-  useEffect(() => {
-    if (!db || isOfflineMode) return;
-    
-    try {
-      const colRef = db.collection('militares_lista');
-      
-      const unsubscribe = colRef.onSnapshot((snapshot) => {
-        const list = snapshot.docs.map(doc => {
-          const data = doc.data() as Omit<Militar, 'idDoc'>;
-          return { ...data, idDoc: doc.id };
-        });
-        
-        if (list.length > 0) {
-          const sorted = list.sort((a, b) => {
-            const ordemA = typeof a.ordem === 'number' ? a.ordem : 9999;
-            const ordemB = typeof b.ordem === 'number' ? b.ordem : 9999;
-            if (ordemA !== ordemB) return ordemA - ordemB;
-            const nomeA = String(a.nome || "");
-            const nomeB = String(b.nome || "");
-            return nomeA.localeCompare(nomeB);
-          });
-          setTimeout(() => {
-            setMilitares(sorted);
-          }, 0);
-        } else if (!snapshot.metadata.fromCache) {
-          // Se o banco estiver vazio, salva o backup inicial nele
-          LISTA_INICIAL.forEach(m => {
-            const { idDoc, ...rest } = m;
-            colRef.add(rest);
-          });
-        }
-      }, (error) => {
-        console.warn("Aviso Firestore:", error);
-        setTimeout(() => {
-          setIsOfflineMode(true);
-          setMilitares(LISTA_INICIAL.map((m, i) => ({ ...m, idDoc: `local-${i}` })));
-        }, 0);
-      });
-
-      return () => unsubscribe();
-    } catch (e) {
-      console.error("Erro no Listener do banco de dados:", e);
-      setTimeout(() => {
-        setIsOfflineMode(true);
-        setMilitares(LISTA_INICIAL.map((m, i) => ({ ...m, idDoc: `local-${i}` })));
-      }, 0);
-    }
-  }, [db, isOfflineMode]);
-
-  // --- ATUALIZAÇÃO AUTOMÁTICA DE TIPO DE SERVIÇO ---
+  // --- ATUALIZAÇÃO AUTOMÁTICA DE TIPO DE SERVIÇO (BASED ON DATES) ---
   useEffect(() => {
     if (serviceDates.start && serviceDates.end) {
       const diffTime = Math.abs(serviceDates.end.getTime() - serviceDates.start.getTime());
       const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      if (dias === 2) {
-        setTimeout(() => {
-          setTipoServico("48H");
-        }, 0);
-      } else if (dias >= 3) {
-        setTimeout(() => {
-          setTipoServico("72H");
-        }, 0);
-      }
+      if (dias === 2) setTipoServico("48H");
+      else if (dias >= 3) setTipoServico("72H");
     } else if (serviceDates.start) {
       if (tipoServico !== '1QTU' && tipoServico !== '2QTU') {
-        setTimeout(() => {
-          setTipoServico("24H");
-        }, 0);
+        setTipoServico("24H");
       }
     }
   }, [serviceDates.start, serviceDates.end, tipoServico]);
 
+  // --- PROGRESSO DINÂMICO ---
+  const getProgress = () => {
+    let completed = 0;
+    let total = 5;
+
+    if (pmSubstituido.nome) completed++;
+    if (pmSubstituto.nome) completed++;
+    if (serviceDates.start) completed++;
+    if (noPagamento || paymentDates.start) completed++;
+    if (comandante) completed++;
+
+    return Math.round((completed / total) * 100);
+  };
+
   // --- FUNÇÕES ADMIN ---
-  const addMilitarLocal = (nome: string, id: string) => {
+  const addMilitarLocal = async (nome: string, id: string) => {
     const maxOrdem = militares.reduce((max, m) => typeof m.ordem === 'number' ? Math.max(max, m.ordem) : max, -1);
-    const newMilitar = { nome: nome, idMilitar: id, ordem: maxOrdem + 1 };
+    const newMilitar = { nome, idMilitar: id, ordem: maxOrdem + 1 };
     
+    const { db } = getFirebase();
     if (db && !isOfflineMode) {
-      db.collection('militares_lista').add(newMilitar);
+      try {
+        await addDoc(collection(db, 'militares_lista'), newMilitar);
+      } catch (err) {
+        console.error("Erro ao adicionar no banco:", err);
+      }
     } else {
-      const newLocal = { ...newMilitar, idDoc: `local-${Date.now()}` };
+      const newLocal = { ...newMilitar, idDoc: Date.now().toString() };
       setMilitares([...militares, newLocal]);
     }
   };
 
   const deleteMilitarLocal = async (idDoc: string) => {
-    if(!window.confirm("Tem certeza que deseja excluir este militar?")) return;
-    
+    if (!window.confirm("Tem certeza que deseja excluir este militar?")) return;
     setMilitares(current => current.filter(m => m.idDoc !== idDoc));
-    if (db && !isOfflineMode && !idDoc.startsWith('local-')) {
+    
+    const { db } = getFirebase();
+    if (db && !isOfflineMode) {
       try {
-        await db.collection('militares_lista').doc(idDoc).delete();
-      } catch (err) { console.error("Erro excluir:", err); }
+        await deleteDoc(doc(db, 'militares_lista', idDoc));
+      } catch (err) {
+        console.error("Erro ao excluir no banco:", err);
+      }
     }
   };
 
   const startEdit = (m: Militar) => {
-    if (m.idDoc) {
-      setEditingId(m.idDoc);
-      setEditName(m.nome || "");
-      setEditIdMilitar(m.idMilitar || "");
-    }
+    setEditingId(m.idDoc);
+    setEditName(m.nome);
+    setEditIdMilitar(m.idMilitar);
   };
 
   const saveEdit = async () => {
+    if (!editingId) return;
     const idToUpdate = editingId;
-    if (!idToUpdate) return;
     const dataToUpdate = { nome: editName, idMilitar: editIdMilitar };
     
     const optimisticList = militares.map(m => m.idDoc === editingId ? { ...m, ...dataToUpdate } : m);
     setMilitares(optimisticList);
     setEditingId(null);
 
-    if (db && !isOfflineMode && !idToUpdate.startsWith('local-')) {
+    const { db } = getFirebase();
+    if (db && !isOfflineMode) {
       try {
-        await db.collection('militares_lista').doc(idToUpdate).update(dataToUpdate);
-      } catch (err) { console.error("Erro atualizar:", err); }
+        await updateDoc(doc(db, 'militares_lista', idToUpdate), dataToUpdate);
+      } catch (err) {
+        console.error("Erro ao atualizar no banco:", err);
+        setFormAlert({ title: "Aviso", message: "Erro ao salvar edição no banco." });
+      }
     }
   };
 
@@ -392,19 +290,23 @@ function PortalForm() {
     if (index === 0) return;
     const current = militares[index];
     const prev = militares[index - 1];
+    
     const currentOrdem = typeof current.ordem === 'number' ? current.ordem : index;
     const prevOrdem = typeof prev.ordem === 'number' ? prev.ordem : index - 1;
-    
+
     const newList = [...militares];
     newList[index] = { ...prev, ordem: currentOrdem };
     newList[index - 1] = { ...current, ordem: prevOrdem };
     setMilitares(newList);
 
-    if (db && !isOfflineMode && current.idDoc && prev.idDoc && !current.idDoc.startsWith('local-') && !prev.idDoc.startsWith('local-')) {
+    const { db } = getFirebase();
+    if (db && !isOfflineMode) {
       try {
-        await db.collection('militares_lista').doc(current.idDoc).update({ ordem: prevOrdem });
-        await db.collection('militares_lista').doc(prev.idDoc).update({ ordem: currentOrdem });
-      } catch (err) { console.error("Erro reordenar:", err); }
+        await updateDoc(doc(db, 'militares_lista', current.idDoc), { ordem: prevOrdem });
+        await updateDoc(doc(db, 'militares_lista', prev.idDoc), { ordem: currentOrdem });
+      } catch (err) {
+        console.error("Erro ao reordenar:", err);
+      }
     }
   };
 
@@ -412,41 +314,24 @@ function PortalForm() {
     if (index === militares.length - 1) return;
     const current = militares[index];
     const next = militares[index + 1];
+    
     const currentOrdem = typeof current.ordem === 'number' ? current.ordem : index;
     const nextOrdem = typeof next.ordem === 'number' ? next.ordem : index + 1;
-    
+
     const newList = [...militares];
     newList[index] = { ...next, ordem: currentOrdem };
     newList[index + 1] = { ...current, ordem: nextOrdem };
     setMilitares(newList);
 
-    if (db && !isOfflineMode && current.idDoc && next.idDoc && !current.idDoc.startsWith('local-') && !next.idDoc.startsWith('local-')) {
+    const { db } = getFirebase();
+    if (db && !isOfflineMode) {
       try {
-        await db.collection('militares_lista').doc(current.idDoc).update({ ordem: nextOrdem });
-        await db.collection('militares_lista').doc(next.idDoc).update({ ordem: currentOrdem });
-      } catch (err) { console.error("Erro reordenar:", err); }
+        await updateDoc(doc(db, 'militares_lista', current.idDoc), { ordem: nextOrdem });
+        await updateDoc(doc(db, 'militares_lista', next.idDoc), { ordem: currentOrdem });
+      } catch (err) {
+        console.error("Erro ao reordenar:", err);
+      }
     }
-  };
-
-  const handlePrevMonthService = () => {
-    const newDate = new Date(serviceDates.currentMonth);
-    newDate.setMonth(newDate.getMonth() - 1);
-    setServiceDates({ ...serviceDates, currentMonth: newDate });
-  };
-  const handleNextMonthService = () => {
-    const newDate = new Date(serviceDates.currentMonth);
-    newDate.setMonth(newDate.getMonth() + 1);
-    setServiceDates({ ...serviceDates, currentMonth: newDate });
-  };
-  const handlePrevMonthPayment = () => {
-    const newDate = new Date(paymentDates.currentMonth);
-    newDate.setMonth(newDate.getMonth() - 1);
-    setPaymentDates({ ...paymentDates, currentMonth: newDate });
-  };
-  const handleNextMonthPayment = () => {
-    const newDate = new Date(paymentDates.currentMonth);
-    newDate.setMonth(newDate.getMonth() + 1);
-    setPaymentDates({ ...paymentDates, currentMonth: newDate });
   };
 
   const formatarDataRange = (startDate: Date | null, endDate: Date | null) => {
@@ -455,8 +340,14 @@ function PortalForm() {
     const end = endDate ? new Date(endDate) : start;
     const dates: Date[] = [];
     let curr = new Date(start);
-    while (curr <= end) { dates.push(new Date(curr)); curr.setDate(curr.getDate() + 1); }
-    if (dates.length === 1) return `${String(dates[0].getDate()).padStart(2, '0')}/${String(dates[0].getMonth() + 1).padStart(2, '0')}/${dates[0].getFullYear()}`;
+    while (curr <= end) { 
+      dates.push(new Date(curr)); 
+      curr.setDate(curr.getDate() + 1); 
+    }
+    
+    if (dates.length === 1) {
+      return `${String(dates[0].getDate()).padStart(2, '0')}/${String(dates[0].getMonth() + 1).padStart(2, '0')}/${dates[0].getFullYear()}`;
+    }
     
     let result = '';
     let currentMonth = dates[0].getMonth();
@@ -478,363 +369,850 @@ function PortalForm() {
     return result;
   };
 
-  // --- IMPRESSÃO ---
+  // --- IMPRESSÃO COMPATÍVEL COM NAVEGADOR ---
   const handlePrint = () => {
     if (!pmSubstituido.nome || !pmSubstituto.nome || !serviceDates.start) {
-      setFormAlert({ title: "Campos Incompletos", message: "Preencha os nomes e selecione as datas no calendário." });
+      setFormAlert({ 
+        title: "Campos Incompletos", 
+        message: "Por favor, selecione ambos os militares (Substituído e Substituto) e escolha a data do serviço no calendário antes de concluir." 
+      });
       return;
     }
 
-    const servicoTexto = formatarDataRange(serviceDates.start, serviceDates.end);
-    let pagamentoTexto = !noPagamento ? formatarDataRange(paymentDates.start, paymentDates.end) : '';
-    
-    if (!pagamentoTexto || pagamentoTexto.trim() === '') {
-      pagamentoTexto = 'SA';
-    }
-
-    const localizacaoSede = localizacao === 'SEDE' ? 'X' : '&nbsp;';
-    const localizacaoTurilandia = localizacao === 'TURILÂNDIA' ? 'X' : '&nbsp;';
-    const localizacaoTuriacu = localizacao === 'TURIAÇU' ? 'X' : '&nbsp;';
-
-    const tipo1QTU = tipoServico === '1QTU' ? 'X' : '&nbsp;';
-    const tipo2QTU = tipoServico === '2QTU' ? 'X' : '&nbsp;';
-    const tipo24 = tipoServico === '24H' ? 'X' : '&nbsp;';
-    const tipo48 = tipoServico === '48H' ? 'X' : '&nbsp;';
-    const tipo72 = tipoServico === '72H' ? 'X' : '&nbsp;';
-
-    const brasaoUrlPrint = 'https://i.ibb.co/WvgB63VR/bras-o-pm.png';
-
-    const win = window.open('', '_blank');
-    if (!win) {
-      setFormAlert({ title: "Bloqueador de Popups", message: "Por favor, permita popups para este site para que a impressão possa ser gerada." });
-      return;
-    }
-    win.document.write(`
-        <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Permuta Impressão</title>
-        <style>
-            body { font-family: 'Times New Roman', Times, serif; margin: 1.5cm; line-height: 1.15; font-size: 12pt; }
-            .container { width: 100%; max-width: 800px; margin: 0 auto; } .text-center { text-align: center; }
-            .font-bold { font-weight: bold; } p { margin: 4px 0; } .header p { margin: 2px 0; }
-            .text-sm { font-size: 11pt; } .text-xs { font-size: 9pt; } .text-base { font-size: 12pt; }
-        </style></head><body>
-        <div class="container">
-            <div class="text-center" style="line-height: 1.15; margin: 0;">
-                <img src="${brasaoUrlPrint}" alt="Brasão" style="width: 90px; height: 110px; display: block; margin: 0 auto 4px;" id="brasao-print">
-                <p class="font-bold" style="margin: 0;">ESTADO DO MARANHÃO</p>
-                <p class="text-sm" style="margin: 0;">SECRETARIA DE SEGURANÇA PÚBLICA</p>
-                <p class="text-sm" style="margin: 0;">CPA/I-5 – 10º BPM</p>
-                <p class="text-sm" style="margin: 0;">10º BATALHÃO DA POLÍCIA MILITAR DO MARANHÃO</p>
-                <p class="text-sm" style="margin: 0;">2ª COMPANHIA DO 10° BATALHÃO DE POLÍCIA MILITAR</p>
-                <p class="text-xs" style="margin: 0;">Rua Dr. Paulo Ramos, s/nº, Centro, Santa Helena - MA, Telefax: (98) 99243-6850 - Email: 2cia10bpm@gmail.com</p>
-                <p class="font-bold" style="margin-top: 2rem; margin-bottom: 0;">FORMULÁRIO DE AUTORIZAÇÃO PARA PERMUTA DE SERVIÇO</p>
-            </div>
-            <div class="mt-4 mb-4" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">
-                <p class="text-base">SEDE: ( ${localizacaoSede} )&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DPM TURILÂNDIA: ( ${localizacaoTurilandia} )&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;DPM TURIAÇU: ( ${localizacaoTuriacu} )</p>
-            </div>
-            <div style="margin-bottom: 0.25rem;">
-                <p class="text-base">PM SUBSTITUÍDO: ${pmSubstituido.nome.toUpperCase()} - ${pmSubstituido.id}</p>
-                <p style="margin-top: 4rem;">Assinatura:________________________________________</p>
-            </div>
-            <div style="margin-bottom: 0.25rem; margin-top: 1.5rem;">
-                <p class="text-base">PM SUBSTITUTO: ${pmSubstituto.nome.toUpperCase()} - ${pmSubstituto.id}</p>
-                <p style="margin-top: 4rem;">Assinatura:________________________________________</p>
-            </div>
-            <div class="mb-2" style="margin-top: 1.5rem;">
-                <p class="text-base">Data do serviço permutado: ${servicoTexto}</p>
-                <p class="text-base">Data do pagamento do serviço: ${pagamentoTexto}</p>
-            </div>
-            <div class="mb-4" style="text-align: left; margin-left: 20px; margin-top: 1rem;">
-                <p class="text-base">( ${tipo1QTU} ) 1º QTU - ( ${tipo2QTU} ) 2º QTU - ( ${tipo24} ) 24 Horas - ( ${tipo48} ) 48 Horas - ( ${tipo72} ) 72 Horas</p>
-            </div>
-            <div class="text-center" style="margin-top: 2rem;">
-                <p class="text-base" style="margin: 0;">AUTORIZO A PERMUTA ENTRE OS POLICIAIS MILITARES ACIMA RELACIONADOS: ( &nbsp; ) Sim &nbsp; ( &nbsp; ) Não</p>
-                <p class="text-base" style="margin-top: 3rem; margin-bottom: 0;">_____________________________________________________</p>
-                <p class="text-base" style="margin-top: 0.2rem; margin-bottom: 0;">${comandante.toUpperCase()}</p>
-                <p class="text-sm" style="margin-top: 0;">COMANDANTE DA 2°CP/10°BPM</p>
-            </div>
-            <script>
-                window.onload = function() {
-                    var img = document.getElementById('brasao-print');
-                    if(img && img.complete) {
-                        setTimeout(window.print, 200);
-                    } else if(img) {
-                        img.onload = function() { setTimeout(window.print, 200); };
-                        img.onerror = function() { setTimeout(window.print, 200); }; 
-                    } else {
-                        setTimeout(window.print, 200);
-                    }
-                }
-            </script>
-        </div></body></html>
-    `);
-    win.document.close();
+    window.print();
   };
 
-  const renderCalendar = (state: CalendarState, setState: React.Dispatch<React.SetStateAction<CalendarState>>) => {
+  const renderCalendar = (state: DateState, setState: React.Dispatch<React.SetStateAction<DateState>>) => {
     const month = state.currentMonth.getMonth();
     const year = state.currentMonth.getFullYear();
     const first = new Date(year, month, 1).getDay();
     const last = new Date(year, month + 1, 0).getDate();
-    const today = new Date(); today.setHours(0,0,0,0);
+    const today = new Date(); 
+    today.setHours(0,0,0,0);
     const days = [];
-    for(let i=0; i<first; i++) days.push(<div key={'e'+i}/>);
-    for(let i=1; i<=last; i++) {
+
+    for (let i = 0; i < first; i++) {
+      days.push(<div key={'e' + i} className="aspect-square" />);
+    }
+
+    for (let i = 1; i <= last; i++) {
       const d = new Date(year, month, i);
       const isPast = d < today;
-      const isSel = !!((state.start && d.getTime() === state.start.getTime()) || (state.end && d.getTime() === state.end.getTime()));
-      const inR = !!(state.start && state.end && d > state.start && d < state.end);
+      const isSel = (state.start && d.getTime() === state.start.getTime()) || 
+                    (state.end && d.getTime() === state.end.getTime());
+      const inR = state.start && state.end && d > state.start && d < state.end;
+
       days.push(
-        <div key={i} onClick={() => {
-          if(isPast) return;
-          let s = state.start, e = state.end;
-          if(!s || (s && e)) { s = d; e = null; } else { e = d; if(e < s) [s, e] = [e, s]; if(Math.ceil(Math.abs(e.getTime()-s.getTime())/86400000) > 2) { setFormAlert({title: "Limite", message: "Máximo 3 dias permitidos."}); s = d; e = null; }}
-          setState({...state, start: s, end: e});
-        }} className={`calendar-day-btn ${isPast ? 'text-gray-200 cursor-not-allowed' : 'hover:bg-blue-100'} ${isSel ? 'bg-blue-600 text-white font-bold' : ''} ${inR ? 'bg-blue-100 text-blue-800' : ''}`}>{i}</div>
+        <div 
+          key={i} 
+          onClick={() => {
+            if (isPast) return;
+            let s = state.start;
+            let e = state.end;
+            if (!s || (s && e)) { 
+              s = d; 
+              e = null; 
+            } else { 
+              e = d; 
+              if (e < s) [s, e] = [e, s]; 
+              const diffTime = Math.abs(e.getTime() - s.getTime());
+              const daysDiff = Math.ceil(diffTime / 86400000);
+              if (daysDiff > 2) { 
+                setFormAlert({
+                  title: "Limite de Datas", 
+                  message: "O período máximo permitido para permuta é de até 3 dias consecutivos."
+                }); 
+                s = d; 
+                e = null; 
+              } 
+            }
+            setState({ ...state, start: s, end: e });
+          }} 
+          className={`calendar-day-btn text-xs sm:text-sm font-semibold transition-all duration-150 ${
+            isPast 
+              ? 'text-slate-600 bg-slate-900/10 cursor-not-allowed opacity-30' 
+              : 'text-slate-300 hover:bg-slate-700 hover:text-white active:scale-90'
+          } ${
+            isSel 
+              ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-500/30 border border-blue-400' 
+              : ''
+          } ${
+            inR 
+              ? 'bg-blue-950/60 text-blue-300 font-medium border-y border-blue-900/50' 
+              : ''
+          }`}
+        >
+          {i}
+        </div>
       );
     }
     return days;
   };
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-[#483D8B] flex items-center justify-center p-4">
-        <div className="text-white text-lg font-bold animate-pulse">Carregando...</div>
-      </div>
-    );
-  }
+  // Variáveis calculadas para a visualização de impressão
+  const servicoTexto = formatarDataRange(serviceDates.start, serviceDates.end);
+  const pagamentoTexto = !noPagamento ? formatarDataRange(paymentDates.start, paymentDates.end) : 'SA';
+
+  const localizacaoSede = localizacao === 'SEDE' ? 'X' : ' ';
+  const localizacaoTurilandia = localizacao === 'TURILÂNDIA' ? 'X' : ' ';
+  const localizacaoTuriacu = localizacao === 'TURIAÇU' ? 'X' : ' ';
+
+  const tipo1QTU = tipoServico === '1QTU' ? 'X' : ' ';
+  const tipo2QTU = tipoServico === '2QTU' ? 'X' : ' ';
+  const tipo24 = tipoServico === '24H' ? 'X' : ' ';
+  const tipo48 = tipoServico === '48H' ? 'X' : ' ';
+  const tipo72 = tipoServico === '72H' ? 'X' : ' ';
 
   return (
-    <div className="min-h-screen p-4 md:p-10 flex flex-col items-center">
-      {formAlert && (
-        <div className="fixed inset-0 bg-black/60 z-[300] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full text-center">
-            <h3 className="text-xl font-bold mb-4">{formAlert.title}</h3>
-            <p className="text-gray-600 mb-6">{formAlert.message}</p>
-            <button onClick={() => setFormAlert(null)} className="w-full bg-blue-600 text-white py-3 rounded-2xl font-bold">OK</button>
-          </div>
+    <div className="min-h-screen flex flex-col lg:flex-row bg-[#0f172a] text-slate-200">
+      
+      {/* 1. SEÇÃO DE IMPRESSÃO REAL (Oculta na tela, visível apenas no comando print) */}
+      <div className="hidden print:block w-[100%] max-w-[800px] text-black bg-white font-serif mx-auto p-4 leading-relaxed text-[12pt]">
+        <div className="text-center flex flex-col items-center">
+          <img 
+            src="https://i.ibb.co/WvgB63VR/bras-o-pm.png" 
+            alt="Brasão PMMA" 
+            className="w-[90px] h-[110px] object-contain mb-3"
+            referrerPolicy="no-referrer"
+          />
+          <p className="font-bold uppercase text-[12pt] m-0 tracking-wide">Estado do Maranhão</p>
+          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">Secretaria de Segurança Pública</p>
+          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">CPA/I-5 – 10º BPM</p>
+          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">10º Batalhão da Polícia Militar do Maranhão</p>
+          <p className="text-[11pt] uppercase m-0 font-medium text-gray-700">2ª Companhia do 10° Batalhão de Polícia Militar</p>
+          <p className="text-[9pt] italic m-0 text-gray-500">Rua Dr. Paulo Ramos, s/nº, Centro, Santa Helena - MA, Telefax: (98) 99243-6850 - Email: 2cia10bpm@gmail.com</p>
+          <p className="font-bold text-[12pt] mt-8 mb-6 uppercase tracking-tight border-b-2 border-black pb-2 w-full">
+            Formulário de Autorização para Permuta de Serviço
+          </p>
         </div>
-      )}
 
-      {showAdminLogin && (
-        <div className="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-[2rem] shadow-2xl max-w-sm w-full">
-            <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Icon name="lock" /> Administração</h3>
-            <input type="password" placeholder="Senha Padrão" className="w-full p-4 border rounded-2xl mb-6 outline-none focus:ring-2 focus:ring-blue-500" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} />
-            <div className="flex gap-3">
-              <button onClick={() => setShowAdminLogin(false)} className="flex-1 py-3 border rounded-2xl font-bold text-gray-400 text-sm">Voltar</button>
-              <button onClick={() => { if(loginPassword === ADMIN_PASSWORD) { setIsAdminMode(true); setShowAdminLogin(false); setLoginPassword(""); } else { setFormAlert({title:"Erro", message:"Senha incorreta."}); } }} className="flex-1 py-3 bg-blue-600 text-white rounded-2xl font-bold text-sm">Entrar</button>
-            </div>
-          </div>
+        <div className="my-6 text-[12pt] font-semibold">
+          <p className="flex justify-between w-full max-w-2xl">
+            <span>SEDE: ( {localizacaoSede} )</span>
+            <span>DPM TURILÂNDIA: ( {localizacaoTurilandia} )</span>
+            <span>DPM TURIAÇU: ( {localizacaoTuriacu} )</span>
+          </p>
         </div>
-      )}
 
-      {isAdminMode && (
-        <div className="fixed inset-0 bg-black/60 z-[160] flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl">
-            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <Icon name="settings" className="text-blue-600" /> Militares da Unidade
-              </h2>
-              <button onClick={() => setIsAdminMode(false)} className="p-2 hover:bg-gray-100 rounded-full"><Icon name="x" /></button>
-            </div>
-            <div className="p-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
-              {isOfflineMode && (
-                <div className="p-4 bg-yellow-50 border border-yellow-100 text-yellow-800 text-xs rounded-xl mb-2">
-                  <strong>Aviso:</strong> Conexão Firebase falhou. Mudanças visíveis apenas até recarregar a página.
-                </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-200">
-                <input id="nM" placeholder="Nome do PM" className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800" />
-                <input id="iM" placeholder="ID/Matrícula" className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-800" />
-                <button onClick={() => {
-                  const nMEl = document.getElementById('nM') as HTMLInputElement | null;
-                  const iMEl = document.getElementById('iM') as HTMLInputElement | null;
-                  const n = nMEl?.value || ''; 
-                  const i = iMEl?.value || '';
-                  if(n && i) { 
-                    addMilitarLocal(n, i); 
-                    if(nMEl) nMEl.value=''; 
-                    if(iMEl) iMEl.value=''; 
-                  }
-                }} className="bg-blue-600 text-white rounded-xl font-bold py-2 hover:bg-blue-700 transition-colors flex justify-center items-center"><Icon name="plus" className="inline mr-1"/> Add</button>
+        <div className="mt-8 space-y-6">
+          <div className="border border-black p-4 rounded-sm">
+            <p className="font-bold uppercase m-0 text-[11pt]">PM Substituído:</p>
+            <p className="text-[12pt] mt-1 font-semibold">{pmSubstituido.nome.toUpperCase()} - ID/Matrícula: {pmSubstituido.id || 'N/A'}</p>
+            <div className="mt-12 flex justify-between items-end">
+              <span className="text-[10pt]">Data: ____/____/______</span>
+              <div className="text-center w-1/2">
+                <div className="border-t border-black w-full" />
+                <p className="text-[10pt] uppercase font-bold mt-1">Assinatura do PM Substituído</p>
               </div>
-              <div className="space-y-2">
-                {militares.map((m, index) => (
-                  <div key={m.idDoc} className="flex justify-between items-center p-4 border rounded-2xl hover:bg-gray-50 transition-colors">
-                    {editingId === m.idDoc ? (
-                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 mr-2">
-                        <input value={editName} onChange={(e) => setEditName(e.target.value)} className="p-2 border rounded-lg text-sm bg-white text-gray-800" />
-                        <input value={editIdMilitar} onChange={(e) => setEditIdMilitar(e.target.value)} className="p-2 border rounded-lg text-sm bg-white text-gray-800" />
-                      </div>
-                    ) : (
-                      <div className="flex-1">
-                        <p className="font-bold text-gray-800 text-sm">{m.nome}</p>
-                        <p className="text-xs text-gray-500">ID: {m.idMilitar}</p>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-1">
-                      {editingId === m.idDoc ? (
-                        <button onClick={saveEdit} className="text-green-600 p-2 hover:bg-green-100 rounded-lg" title="Salvar"><Icon name="save" size={18}/></button>
-                      ) : (
-                        <button onClick={() => startEdit(m)} className="text-blue-500 p-2 hover:bg-blue-50 rounded-lg" title="Editar"><Icon name="pen" size={16}/></button>
-                      )}
-                      
-                      <div className="flex flex-col">
-                        <button onClick={() => moveUp(index)} disabled={index === 0} className={`p-1 ${index===0 ? 'text-gray-300' : 'text-gray-500 hover:text-blue-600 hover:bg-gray-100'} rounded`}><Icon name="arrowUp" size={12}/></button>
-                        <button onClick={() => moveDown(index)} disabled={index === militares.length - 1} className={`p-1 ${index===militares.length-1 ? 'text-gray-300' : 'text-gray-500 hover:text-blue-600 hover:bg-gray-100'} rounded`}><Icon name="arrowDown" size={12}/></button>
-                      </div>
+            </div>
+          </div>
 
-                      {m.idDoc && (
-                        <button onClick={() => deleteMilitarLocal(m.idDoc!)} className="text-red-500 p-2 hover:bg-red-50 rounded-lg ml-1" title="Excluir"><Icon name="trash" size={18}/></button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+          <div className="border border-black p-4 rounded-sm">
+            <p className="font-bold uppercase m-0 text-[11pt]">PM Substituto:</p>
+            <p className="text-[12pt] mt-1 font-semibold">{pmSubstituto.nome.toUpperCase()} - ID/Matrícula: {pmSubstituto.id || 'N/A'}</p>
+            <div className="mt-12 flex justify-between items-end">
+              <span className="text-[10pt]">Data: ____/____/______</span>
+              <div className="text-center w-1/2">
+                <div className="border-t border-black w-full" />
+                <p className="text-[10pt] uppercase font-bold mt-1">Assinatura do PM Substituto</p>
               </div>
             </div>
           </div>
         </div>
-      )}
 
-      <div className="max-w-5xl w-full bg-white rounded-[3rem] shadow-2xl overflow-hidden">
-        <header className="p-8 md:p-12 text-center border-b bg-gray-50 relative">
-          <button onClick={() => setShowAdminLogin(true)} className="absolute top-6 right-6 text-gray-300 hover:text-blue-600 transition-colors"><Icon name="settings" /></button>
-          <img src="https://i.ibb.co/990DrMgQ/imagem-2026-04-29-112907685-removebg-preview.png" className="h-20 mx-auto mb-6" alt="Logo" />
-          <h1 className="text-xl font-bold text-gray-800 tracking-tight">2ª COMPANHIA</h1>
-          <p className="text-[10px] text-gray-500 font-bold mb-8 uppercase tracking-[0.2em]">DPM DE TURIAÇU</p>
-          <h2 className="text-4xl font-black text-gray-900 mb-8 tracking-tighter text-center">Permuta de Serviço</h2>
-          <div className="flex justify-center">
-            <select value={localizacao} onChange={e => setLocalizacao(e.target.value)} className="w-full max-w-xs p-4 border-2 border-gray-100 rounded-2xl text-center font-bold text-lg outline-none focus:border-blue-500 bg-white text-gray-800 cursor-pointer shadow-sm">
-              <option>TURIAÇU</option><option>SEDE</option><option>TURILÂNDIA</option>
-            </select>
+        <div className="mt-6 border border-black p-4 rounded-sm space-y-3">
+          <p className="text-[12pt]"><span className="font-bold">Data do serviço permutado:</span> {servicoTexto || '____/____/______'}</p>
+          <p className="text-[12pt]"><span className="font-bold">Data do pagamento do serviço:</span> {pagamentoTexto || 'SA'}</p>
+        </div>
+
+        <div className="mt-6 flex flex-wrap justify-between text-[11pt] font-semibold border border-black p-3 bg-gray-50/50">
+          <span>( {tipo1QTU} ) 1º QTU</span>
+          <span>( {tipo2QTU} ) 2º QTU</span>
+          <span>( {tipo24} ) 24 Horas</span>
+          <span>( {tipo48} ) 48 Horas</span>
+          <span>( {tipo72} ) 72 Horas</span>
+        </div>
+
+        <div className="mt-10 border-2 border-dashed border-black p-6 rounded-sm text-center">
+          <p className="font-bold text-[12pt]">AUTORIZO A PERMUTA ENTRE OS POLICIAIS MILITARES ACIMA RELACIONADOS:</p>
+          <p className="font-bold text-[13pt] mt-2 flex justify-center gap-12">
+            <span>( &nbsp; ) SIM</span>
+            <span>( &nbsp; ) NÃO</span>
+          </p>
+          
+          <div className="mt-16 flex flex-col items-center">
+            <div className="border-t border-black w-3/4 max-w-md" />
+            <p className="font-bold text-[12pt] uppercase mt-2 mb-0 tracking-wide text-center">{comandante.toUpperCase()}</p>
+            <p className="text-[10pt] uppercase font-bold text-gray-600 m-0 text-center">Comandante da 2ª CP/10º BPM</p>
           </div>
-        </header>
+        </div>
+      </div>
 
-        <main className="p-6 md:p-12 space-y-12 text-gray-800">
-          <div className="grid md:grid-cols-2 gap-10">
-            <div className="bg-gray-50 p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-              <h3 className="font-bold text-blue-800 text-[10px] uppercase tracking-widest mb-6 text-center">1. PM SUBSTITUÍDO</h3>
-              <select className="w-full p-4 bg-white border border-gray-200 rounded-2xl mb-5 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-500" value={pmSubstituido.nome} onChange={e => { const m = militares.find(x => x.nome === e.target.value); setPmSubstituido({nome: e.target.value, id: m ? m.idMilitar : ""}); }}>
-                <option value="">Selecione o militar...</option>
-                {militares.map(m => <option key={m.idDoc} value={m.nome || "Militar sem nome"}>{m.nome || "Militar sem nome"}</option>)}
-              </select>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400 tracking-widest uppercase">ID:</span>
-                <input className="w-full p-4 pl-12 bg-white border border-gray-100 rounded-2xl font-bold text-gray-500 shadow-inner outline-none" readOnly value={pmSubstituido.id} placeholder="---" />
-              </div>
+      {/* 2. LAYOUT PRINCIPAL INTERATIVO (Oculto na impressão) */}
+      <div className="flex-1 flex flex-col lg:flex-row no-print">
+        
+        {/* SIDEBAR DA ESQUERDA - BENTO ESTILO */}
+        <aside className="w-full lg:w-80 border-b lg:border-b-0 lg:border-r border-slate-800/80 flex flex-col p-6 shrink-0 bg-slate-950/40">
+          <div className="flex items-center gap-3.5 mb-8">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-black text-white shadow-lg shadow-blue-600/35">
+              PM
             </div>
-            <div className="bg-gray-50 p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-              <h3 className="font-bold text-blue-800 text-[10px] uppercase tracking-widest mb-6 text-center">2. PM SUBSTITUTO</h3>
-              <select className="w-full p-4 bg-white border border-gray-200 rounded-2xl mb-5 font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-500" value={pmSubstituto.nome} onChange={e => { const m = militares.find(x => x.nome === e.target.value); setPmSubstituto({nome: e.target.value, id: m ? m.idMilitar : ""}); }}>
-                <option value="">Selecione o militar...</option>
-                {militares.map(m => <option key={m.idDoc} value={m.nome || "Militar sem nome"}>{m.nome || "Militar sem nome"}</option>)}
-              </select>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-gray-400 tracking-widest uppercase">ID:</span>
-                <input className="w-full p-4 pl-12 bg-white border border-gray-100 rounded-2xl font-bold text-gray-500 shadow-inner outline-none" readOnly value={pmSubstituto.id} placeholder="---" />
-              </div>
+            <div>
+              <h1 className="text-lg font-black tracking-tight text-white leading-none">PermutaPro</h1>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">2ª CP / 10º BPM MA</p>
             </div>
           </div>
 
-          <div className="bg-gray-50 p-8 rounded-[2.5rem] border border-gray-100">
-            <h3 className="font-bold text-blue-800 text-[10px] uppercase tracking-widest mb-8 text-center">3. DATAS DA PERMUTA</h3>
-            <div className="grid lg:grid-cols-2 gap-12">
-              <div>
-                <label className="font-bold text-gray-700 text-xs block mb-3 ml-2">Serviço Permutado</label>
-                <div className="bg-white p-6 rounded-[2rem] border border-gray-200 shadow-sm">
-                  <div className="flex justify-between items-center mb-6 px-2 text-gray-800">
-                    <button onClick={handlePrevMonthService}><Icon name="chevronLeft" size={18}/></button>
-                    <span className="font-black text-[10px] uppercase tracking-widest">{serviceDates.currentMonth.toLocaleString('pt-BR', {month:'long', year:'numeric'})}</span>
-                    <button onClick={handleNextMonthService}><Icon name="chevronRight" size={18}/></button>
-                  </div>
-                  <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-black text-gray-300 mb-3 uppercase">
-                    {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i) => <div key={i}>{d}</div>)}
-                  </div>
-                  <div className="calendar-grid gap-1">{renderCalendar(serviceDates, setServiceDates)}</div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between mb-3 px-2">
-                  <span className="font-bold text-gray-700 text-xs">Pagamento</span>
-                  <label className="flex items-center gap-2 text-[9px] font-black cursor-pointer text-gray-400 uppercase tracking-tighter">
-                    <input type="checkbox" checked={noPagamento} onChange={e => setNoPagamento(e.target.checked)} className="rounded-sm text-blue-600 border-gray-300 focus:ring-0" />
-                    Não há pagamento
-                  </label>
-                </div>
-                {!noPagamento ? (
-                  <div className="bg-white p-6 rounded-[2rem] border border-gray-200 shadow-sm">
-                    <div className="flex justify-between items-center mb-6 px-2 text-gray-800">
-                      <button onClick={handlePrevMonthPayment}><Icon name="chevronLeft" size={18}/></button>
-                      <span className="font-black text-[10px] uppercase tracking-widest">{paymentDates.currentMonth.toLocaleString('pt-BR', {month:'long', year:'numeric'})}</span>
-                      <button onClick={handleNextMonthPayment}><Icon name="chevronRight" size={18}/></button>
-                    </div>
-                    <div className="grid grid-cols-7 gap-1 text-center text-[9px] font-black text-gray-300 mb-3 uppercase">
-                      {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i) => <div key={i}>{d}</div>)}
-                    </div>
-                    <div className="calendar-grid gap-1">{renderCalendar(paymentDates, setPaymentDates)}</div>
-                  </div>
-                ) : <div className="h-56 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-[2rem] text-gray-300 font-bold italic text-sm text-center px-6">Permuta simples (sem devolução imediata)</div>}
-              </div>
+          <nav className="space-y-2.5 flex-1">
+            <div className="p-3.5 bg-blue-600/10 border border-blue-500/20 rounded-2xl text-blue-400 font-bold flex items-center gap-3 text-sm">
+              <LayoutGrid size={18} />
+              Portal de Permuta
             </div>
             
-            <div className="mt-8 pt-6 border-t border-gray-100">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <label className="font-bold text-gray-700 text-xs block mb-1 ml-2">Duração do Serviço</label>
-                  <p className="text-[10px] text-gray-400 ml-2">Selecione o turno ou a carga horária correspondente.</p>
+            <button 
+              onClick={() => setShowAdminLogin(true)}
+              className="w-full p-3.5 hover:bg-slate-800/60 rounded-2xl text-slate-400 hover:text-slate-200 transition-all flex items-center gap-3 text-sm font-semibold"
+            >
+              <Settings size={18} />
+              Gerenciar Escala
+            </button>
+
+            <button 
+              onClick={() => window.open('https://sso.acesso.gov.br/login', '_blank')}
+              className="w-full p-3.5 hover:bg-slate-800/60 rounded-2xl text-slate-400 hover:text-slate-200 transition-all flex items-center gap-3 text-sm font-semibold text-left"
+            >
+              <ExternalLink size={18} />
+              Acessar GOV.BR
+            </button>
+
+            <button 
+              onClick={() => window.open('https://projetobo.github.io/portal-2CIA/home.html', '_blank')}
+              className="w-full p-3.5 hover:bg-slate-800/60 rounded-2xl text-slate-400 hover:text-slate-200 transition-all flex items-center gap-3 text-sm font-semibold text-left"
+            >
+              <HomeIcon size={18} />
+              Voltar ao Início
+            </button>
+          </nav>
+
+          {/* INDICADOR DE PROGRESSO DENTRO DO BENTO */}
+          <div className="p-4 bg-slate-900/50 border border-slate-800/80 rounded-2xl my-6">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Preenchimento</span>
+              <span className="text-xs font-bold text-blue-400">{getProgress()}%</span>
+            </div>
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <motion.div 
+                className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full"
+                initial={{ width: 0 }}
+                animate={{ width: `${getProgress()}%` }}
+                transition={{ duration: 0.3 }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-2">
+              Complete todos os campos para habilitar a visualização de impressão oficial.
+            </p>
+          </div>
+
+          {/* STATUS DE CONEXÃO FIREBASE */}
+          <div className="mt-auto p-4 bg-slate-900/30 border border-slate-800/60 rounded-2xl flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isOfflineMode ? (
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+              ) : (
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+              )}
+              <span className="text-xs font-bold text-slate-300">
+                {isOfflineMode ? 'Modo Local (Offline)' : 'Servidor Online'}
+              </span>
+            </div>
+            <div>
+              {isOfflineMode ? (
+                <WifiOff size={16} className="text-amber-500" />
+              ) : (
+                <Database size={16} className="text-emerald-500" />
+              )}
+            </div>
+          </div>
+        </aside>
+
+        {/* WORKSPACE PRINCIPAL - BENTO GRID DESIGN */}
+        <main className="flex-1 p-4 sm:p-8 flex flex-col gap-6 overflow-y-auto max-h-screen custom-scrollbar">
+          
+          {/* HEADER PRINCIPAL */}
+          <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/30 border border-slate-800/40 p-6 rounded-[2rem]">
+            <div>
+              <h2 className="text-2xl font-black text-white font-display">Olá, Policial Militar</h2>
+              <p className="text-slate-400 text-sm mt-0.5">Formulário Oficial de Permuta de Escala — Unidade Santa Helena.</p>
+            </div>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative shrink-0">
+                <select 
+                  value={localizacao} 
+                  onChange={e => setLocalizacao(e.target.value)} 
+                  className="bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 font-bold px-4 py-2.5 rounded-xl text-xs outline-none cursor-pointer transition-all pr-8 appearance-none"
+                >
+                  <option value="TURIAÇU">DPM TURIAÇU</option>
+                  <option value="SEDE">SEDE DA COMPANHIA</option>
+                  <option value="TURILÂNDIA">DPM TURILÂNDIA</option>
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <ChevronRight size={14} className="rotate-90" />
                 </div>
-                <div className="flex flex-wrap gap-2">
+              </div>
+
+              <div className="bg-slate-800/80 border border-slate-700/80 p-2.5 rounded-xl text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                <ShieldCheck size={14} className="text-blue-400" />
+                10º BPM MA
+              </div>
+            </div>
+          </header>
+
+          {/* BENTO GRID WORKSPACE */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            {/* CARD 1: PM SUBSTITUÍDO */}
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2rem] p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-6">
+                  <span className="bg-red-500/10 text-red-400 text-[9px] font-black px-2.5 py-1 rounded-full border border-red-500/20 uppercase tracking-wider">
+                    Sai do Serviço
+                  </span>
+                  <UserCheck size={18} className="text-slate-500" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">1. PM Substituído</h3>
+                <p className="text-slate-400 text-xs mb-6">Selecione o militar que está solicitando a saída da escala.</p>
+                
+                <div className="relative mb-4">
+                  <select 
+                    className="w-full p-3.5 bg-slate-800 border border-slate-700 rounded-xl font-bold text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer text-sm" 
+                    value={pmSubstituido.nome} 
+                    onChange={e => { 
+                      const m = militares.find(x => x.nome === e.target.value); 
+                      setPmSubstituido({ nome: e.target.value, id: m ? m.idMilitar : "" }); 
+                    }}
+                  >
+                    <option value="">Selecione o militar...</option>
+                    {militares.map(m => (
+                      <option key={m.idDoc} value={m.nome}>{m.nome}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <ChevronRight className="rotate-90" size={16} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-500 uppercase">
+                  ID/Matrícula:
+                </span>
+                <input 
+                  className="w-full p-3 pl-24 bg-slate-950/50 border border-slate-800/80 rounded-xl font-bold text-slate-400 shadow-inner text-sm focus:outline-none" 
+                  value={pmSubstituido.id} 
+                  onChange={(e) => setPmSubstituido({ ...pmSubstituido, id: e.target.value })} 
+                  placeholder="---" 
+                />
+              </div>
+            </div>
+
+            {/* CARD 2: PM SUBSTITUTO */}
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2rem] p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-6">
+                  <span className="bg-emerald-500/10 text-emerald-400 text-[9px] font-black px-2.5 py-1 rounded-full border border-emerald-500/20 uppercase tracking-wider">
+                    Entra no Serviço
+                  </span>
+                  <UserCheck size={18} className="text-slate-500" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">2. PM Substituto</h3>
+                <p className="text-slate-400 text-xs mb-6">Selecione o militar que assumirá a escala correspondente.</p>
+                
+                <div className="relative mb-4">
+                  <select 
+                    className="w-full p-3.5 bg-slate-800 border border-slate-700 rounded-xl font-bold text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer text-sm" 
+                    value={pmSubstituto.nome} 
+                    onChange={e => { 
+                      const m = militares.find(x => x.nome === e.target.value); 
+                      setPmSubstituto({ nome: e.target.value, id: m ? m.idMilitar : "" }); 
+                    }}
+                  >
+                    <option value="">Selecione o militar...</option>
+                    {militares.map(m => (
+                      <option key={m.idDoc} value={m.nome}>{m.nome}</option>
+                    ))}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                    <ChevronRight className="rotate-90" size={16} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative">
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[9px] font-black text-slate-500 uppercase">
+                  ID/Matrícula:
+                </span>
+                <input 
+                  className="w-full p-3 pl-24 bg-slate-950/50 border border-slate-800/80 rounded-xl font-bold text-slate-400 shadow-inner text-sm focus:outline-none" 
+                  value={pmSubstituto.id} 
+                  onChange={(e) => setPmSubstituto({ ...pmSubstituto, id: e.target.value })} 
+                  placeholder="---" 
+                />
+              </div>
+            </div>
+
+            {/* CARD 3: ESCALA E DURAÇÃO */}
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2rem] p-6 flex flex-col justify-between md:col-span-2 lg:col-span-1">
+              <div>
+                <div className="flex justify-between items-start mb-6">
+                  <span className="bg-blue-500/10 text-blue-400 text-[9px] font-black px-2.5 py-1 rounded-full border border-blue-500/20 uppercase tracking-wider">
+                    Duração
+                  </span>
+                  <Clock size={18} className="text-slate-500" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">Carga Horária</h3>
+                <p className="text-slate-400 text-xs mb-6">Selecione o turno ou a carga horária de serviço.</p>
+                
+                <div className="grid grid-cols-1 gap-2.5">
                   {[
-                    { id: '1QTU', label: '1º QTU (Dia)' },
-                    { id: '2QTU', label: '2º QTU (Noite)' },
-                    { id: '24H', label: '24 Horas' },
-                    { id: '48H', label: '48 Horas' },
-                    { id: '72H', label: '72 Horas' }
+                    { id: '1QTU', label: '1º QTU - Serviço Diurno' },
+                    { id: '2QTU', label: '2º QTU - Serviço Noturno' },
+                    { id: '24H', label: 'Escala 24 Horas' },
+                    { id: '48H', label: 'Escala 48 Horas' },
+                    { id: '72H', label: 'Escala 72 Horas' }
                   ].map(op => (
-                    <label key={op.id} className={`cursor-pointer px-4 py-2 rounded-xl text-xs font-bold transition-all border-2 ${tipoServico === op.id ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-100 bg-white text-gray-500 hover:border-blue-200'}`}>
-                      <input type="radio" name="tipoServico" value={op.id} checked={tipoServico === op.id} onChange={e => setTipoServico(e.target.value)} className="hidden" />
-                      {op.label}
+                    <label 
+                      key={op.id} 
+                      className={`cursor-pointer p-3 rounded-xl text-xs font-bold transition-all border-2 flex items-center justify-between select-none ${
+                        tipoServico === op.id 
+                          ? 'border-blue-500 bg-blue-950/50 text-blue-400' 
+                          : 'border-slate-800 bg-slate-900/30 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="tipoServico" 
+                        value={op.id} 
+                        checked={tipoServico === op.id} 
+                        onChange={e => setTipoServico(e.target.value)} 
+                        className="hidden" 
+                      />
+                      <span>{op.label}</span>
+                      {tipoServico === op.id && <Check size={14} className="stroke-3 text-blue-400" />}
                     </label>
                   ))}
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="bg-blue-50 p-8 rounded-[2.5rem] border border-blue-100 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[9px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest">Editável</div>
-            <h3 className="font-bold text-blue-800 text-[10px] uppercase tracking-widest mb-4 text-center">4. COMANDANTE AUTORIZADOR</h3>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400">
-                <Icon name="pen" size={18}/>
-              </span>
-              <input 
-                className="w-full p-4 pl-12 bg-white border-2 border-blue-200 rounded-2xl font-bold text-blue-900 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all hover:border-blue-300" 
-                value={comandante} 
-                onChange={e => setComandante(e.target.value)} 
-                placeholder="Digite o nome e posto do Comandante"
-              />
+            {/* CARD 4: CALENDÁRIO 1 (SERVIÇO PERMUTADO) */}
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2rem] p-6 lg:col-span-1">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <CalendarDays size={16} className="text-blue-400" />
+                  Data de Saída (Serviço)
+                </h3>
+              </div>
+              <div className="p-1 bg-slate-950/30 border border-slate-800/50 rounded-2xl">
+                <div className="flex justify-between items-center mb-4 p-2">
+                  <button 
+                    onClick={() => setServiceDates({ 
+                      ...serviceDates, 
+                      currentMonth: new Date(serviceDates.currentMonth.setMonth(serviceDates.currentMonth.getMonth() - 1)) 
+                    })}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-300">
+                    {serviceDates.currentMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button 
+                    onClick={() => setServiceDates({ 
+                      ...serviceDates, 
+                      currentMonth: new Date(serviceDates.currentMonth.setMonth(serviceDates.currentMonth.getMonth() + 1)) 
+                    })}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-7 gap-1 text-center text-[8px] font-black text-slate-500 mb-2 uppercase">
+                  {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d, i) => (
+                    <div key={i}>{d}</div>
+                  ))}
+                </div>
+                
+                <div className="calendar-grid gap-1">
+                  {renderCalendar(serviceDates, setServiceDates)}
+                </div>
+              </div>
             </div>
-            <p className="text-center text-[10px] text-blue-500 mt-3 font-medium">Clique no campo acima para alterar o comandante que assinará a permuta.</p>
+
+            {/* CARD 5: CALENDÁRIO 2 (PAGAMENTO / DEVOLUÇÃO) */}
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2rem] p-6 lg:col-span-1">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <CalendarDays size={16} className="text-blue-400" />
+                  Devolução (Pagamento)
+                </h3>
+                <label className="flex items-center gap-1.5 text-[8px] font-black cursor-pointer text-slate-500 hover:text-slate-300 uppercase tracking-wide select-none">
+                  <input 
+                    type="checkbox" 
+                    checked={noPagamento} 
+                    onChange={e => setNoPagamento(e.target.checked)} 
+                    className="rounded text-blue-600 border-slate-700 bg-slate-950 focus:ring-0 cursor-pointer h-3 w-3" 
+                  />
+                  Sem devolução
+                </label>
+              </div>
+
+              {!noPagamento ? (
+                <div className="p-1 bg-slate-950/30 border border-slate-800/50 rounded-2xl">
+                  <div className="flex justify-between items-center mb-4 p-2">
+                    <button 
+                      onClick={() => setPaymentDates({ 
+                        ...paymentDates, 
+                        currentMonth: new Date(paymentDates.currentMonth.setMonth(paymentDates.currentMonth.getMonth() - 1)) 
+                      })}
+                      className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="font-extrabold text-[9px] uppercase tracking-wider text-slate-300">
+                      {paymentDates.currentMonth.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
+                    </span>
+                    <button 
+                      onClick={() => setPaymentDates({ 
+                        ...paymentDates, 
+                        currentMonth: new Date(paymentDates.currentMonth.setMonth(paymentDates.currentMonth.getMonth() + 1)) 
+                      })}
+                      className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-white"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-7 gap-1 text-center text-[8px] font-black text-slate-500 mb-2 uppercase">
+                    {['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d, i) => (
+                      <div key={i}>{d}</div>
+                    ))}
+                  </div>
+                  
+                  <div className="calendar-grid gap-1">
+                    {renderCalendar(paymentDates, setPaymentDates)}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-[214px] flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-2xl text-slate-500 bg-slate-950/20 text-center px-4 gap-2">
+                  <FileText size={28} className="text-slate-600 stroke-1" />
+                  <p className="text-xs font-semibold">Permuta Simples</p>
+                  <p className="text-[10px] text-slate-600 leading-normal">Sem data prevista para devolução da escala na folha atual.</p>
+                </div>
+              )}
+            </div>
+
+            {/* CARD 6: COMANDANTE AUTORIZADOR */}
+            <div className="bg-slate-900/40 border border-slate-800/80 rounded-[2rem] p-6 lg:col-span-1 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-start mb-6">
+                  <span className="bg-blue-500/10 text-blue-400 text-[9px] font-black px-2.5 py-1 rounded-full border border-blue-500/20 uppercase tracking-wider">
+                    Autoridade
+                  </span>
+                  <FileSignature size={18} className="text-slate-500" />
+                </div>
+                <h3 className="text-lg font-bold text-white mb-1">4. Comandante</h3>
+                <p className="text-slate-400 text-xs mb-6">Nome e posto do comandante que ratifica a permuta.</p>
+
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">
+                    <Pencil size={14} />
+                  </span>
+                  <input 
+                    className="w-full p-3 pl-10 bg-slate-800 border border-slate-700 rounded-xl font-bold text-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-xs" 
+                    value={comandante} 
+                    onChange={e => setComandante(e.target.value)} 
+                    placeholder="Nome do Comandante de Companhia"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-4 leading-normal">
+                Este campo é editável. O nome digitado será o impresso na linha de assinatura final da autorização.
+              </p>
+            </div>
+
+            {/* CARD 7: PAINEL DE CONCLUSÃO & PRINT (FULL WIDTH DA GRID) */}
+            <div className="md:col-span-2 lg:col-span-3 bg-gradient-to-r from-blue-900/40 to-slate-900/50 border border-blue-800/40 rounded-[2.5rem] p-6 sm:p-8 flex flex-col lg:flex-row justify-between items-center gap-6">
+              <div className="space-y-2 text-center lg:text-left">
+                <h3 className="text-xl font-black text-white font-display">Tudo pronto para imprimir?</h3>
+                <p className="text-slate-300 text-sm max-w-2xl">
+                  Ao concluir, um formulário oficial formatado nas normas da PMMA será gerado. Certifique-se de recolher as assinaturas dos militares após a impressão física do arquivo.
+                </p>
+                
+                {/* Resumo visual do formulário */}
+                {pmSubstituido.nome && pmSubstituto.nome && serviceDates.start && (
+                  <div className="mt-4 p-3 bg-slate-950/50 rounded-2xl border border-slate-800/60 inline-flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-300">
+                    <div><span className="font-bold text-slate-500">Permuta:</span> {pmSubstituido.nome} ➔ {pmSubstituto.nome}</div>
+                    <div><span className="font-bold text-slate-500">Data:</span> {servicoTexto}</div>
+                    <div><span className="font-bold text-slate-500">Devolução:</span> {pagamentoTexto}</div>
+                    <div><span className="font-bold text-slate-500">Escala:</span> {tipoServico}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="shrink-0 w-full lg:w-auto flex flex-col sm:flex-row gap-3">
+                <button 
+                  onClick={handlePrint}
+                  className="w-full sm:w-auto px-8 py-4.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm cursor-pointer"
+                >
+                  <Printer size={18} />
+                  Concluir e Imprimir
+                </button>
+              </div>
+            </div>
+
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-center items-center gap-6 pt-10 border-t border-gray-100">
-            <button onClick={handlePrint} className="w-full sm:w-auto flex items-center justify-center gap-3 bg-blue-700 text-white px-12 py-5 rounded-[2.2rem] font-black shadow-xl hover:bg-blue-800 transform hover:-translate-y-1 transition-all active:scale-95"><Icon name="check" size={24}/> CONCLUIR E IMPRIMIR</button>
-            <button onClick={() => window.open('https://sso.acesso.gov.br/login', '_blank')} className="w-full sm:w-auto flex items-center justify-center gap-3 bg-gray-100 text-gray-700 px-10 py-5 rounded-[2.2rem] font-bold hover:bg-gray-200 transform hover:-translate-y-1 transition-all active:scale-95"><Icon name="pen" size={20}/> IR AO GOV.BR</button>
-            <a href="https://projetobo.github.io/portal-2CIA/home.html" className="w-full sm:w-auto flex items-center justify-center gap-3 bg-white border-2 border-gray-100 text-gray-500 px-10 py-5 rounded-[2.2rem] font-bold hover:bg-gray-50 transform hover:-translate-y-1 transition-all active:scale-95"><Icon name="home" size={20}/> INÍCIO</a>
-          </div>
+          {/* RODAPÉ DO WORKSPACE */}
+          <footer className="text-center py-6 text-slate-600 text-[10px] font-black uppercase tracking-[0.3em] border-t border-slate-800/30 mt-6">
+            Portal 2ª Companhia / 10º Batalhão PMMA
+          </footer>
         </main>
       </div>
-      <footer className="text-center mt-12 text-white/30 text-[10px] font-black uppercase tracking-[0.4em] pb-10">Portal 2ª Companhia / 10º Batalhão PMMA</footer>
-    </div>
-  );
-}
 
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <PortalForm />
-    </ErrorBoundary>
+      {/* --- MODAL DE AUTENTICAÇÃO DO ADMIN (MODO EDIT DE MILITARES) --- */}
+      <AnimatePresence>
+        {showAdminLogin && (
+          <div className="fixed inset-0 bg-black/70 z-[150] flex items-center justify-center p-4 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-slate-900 border border-slate-800 p-8 rounded-[2.2rem] shadow-2xl max-w-sm w-full"
+            >
+              <h3 className="text-lg font-bold mb-3 flex items-center gap-2 text-white">
+                <Lock className="text-blue-500" /> Acesso de Segurança
+              </h3>
+              <p className="text-slate-400 text-xs mb-6 leading-relaxed">
+                Insira a chave de segurança padrão para gerenciar a lista e ordenação dos policiais militares da unidade.
+              </p>
+              <input 
+                type="password" 
+                placeholder="Chave de Segurança" 
+                className="w-full p-3.5 border border-slate-800 bg-slate-950 text-white rounded-xl mb-6 outline-none focus:ring-2 focus:ring-blue-500 font-bold tracking-widest text-center" 
+                value={loginPassword} 
+                onChange={e => setLoginPassword(e.target.value)} 
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && loginPassword === ADMIN_PASSWORD) {
+                    setIsAdminMode(true);
+                    setShowAdminLogin(false);
+                    setLoginPassword("");
+                  }
+                }}
+              />
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowAdminLogin(false)} 
+                  className="flex-1 py-3 border border-slate-800 rounded-xl font-bold text-slate-400 text-xs hover:bg-slate-800 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => { 
+                    if (loginPassword === ADMIN_PASSWORD) { 
+                      setIsAdminMode(true); 
+                      setShowAdminLogin(false); 
+                      setLoginPassword(""); 
+                    } else { 
+                      setFormAlert({ title: "Senha Incorreta", message: "A chave de segurança inserida não confere com o padrão." }); 
+                    } 
+                  }} 
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-500 active:scale-95 transition-all shadow-lg shadow-blue-500/25"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL DE GERENCIAMENTO DOS MILITARES (ADMIN) --- */}
+      <AnimatePresence>
+        {isAdminMode && (
+          <div className="fixed inset-0 bg-black/70 z-[160] flex items-center justify-center p-4 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="bg-slate-900 border border-slate-800 rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col shadow-2xl"
+            >
+              <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/40">
+                <h2 className="text-lg font-bold flex items-center gap-2 text-white">
+                  <Settings className="text-blue-500 animate-spin-slow" /> Configuração de Militares
+                </h2>
+                <button 
+                  onClick={() => setIsAdminMode(false)} 
+                  className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto flex-1 space-y-4 custom-scrollbar">
+                {isOfflineMode && (
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs rounded-2xl mb-2 flex items-start gap-2.5">
+                    <AlertCircle size={16} className="shrink-0 mt-0.5 text-amber-400" />
+                    <div>
+                      <strong>Modo Local Offline Ativado:</strong> Suas alterações ficarão salvas no seu navegador (localStorage) e persistirão nas próximas visitas.
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-950/40 rounded-2xl border border-slate-800 shadow-inner">
+                  <input 
+                    id="nM" 
+                    placeholder="Nome do PM (ex: Sd PM Sales)" 
+                    className="p-3 border border-slate-800 bg-slate-900 rounded-xl text-xs font-semibold text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                  />
+                  <input 
+                    id="iM" 
+                    placeholder="Matrícula/ID" 
+                    className="p-3 border border-slate-800 bg-slate-900 rounded-xl text-xs font-semibold text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                  />
+                  <button 
+                    onClick={() => {
+                      const nInput = document.getElementById('nM') as HTMLInputElement;
+                      const iInput = document.getElementById('iM') as HTMLInputElement;
+                      const n = nInput?.value; 
+                      const i = iInput?.value;
+                      if (n && i) { 
+                        addMilitarLocal(n, i); 
+                        nInput.value = ''; 
+                        iInput.value = ''; 
+                      } else {
+                        setFormAlert({ title: "Campos Incompletos", message: "Insira o nome e a matrícula do novo militar para cadastrá-lo." });
+                      }
+                    }} 
+                    className="bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold py-2.5 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/15 text-xs"
+                  >
+                    <Plus size={14} /> Adicionar
+                  </button>
+                </div>
+
+                <div className="space-y-1.5 mt-4">
+                  {militares.map((m, index) => (
+                    <div 
+                      key={m.idDoc} 
+                      className="flex justify-between items-center p-3.5 border border-slate-800/60 bg-slate-900/30 rounded-xl hover:bg-slate-900/60 transition-colors"
+                    >
+                      {editingId === m.idDoc ? (
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2 mr-2">
+                          <input 
+                            value={editName} 
+                            onChange={(e) => setEditName(e.target.value)} 
+                            className="p-2 border border-slate-700 bg-slate-800 rounded-lg text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                          />
+                          <input 
+                            value={editIdMilitar} 
+                            onChange={(e) => setEditIdMilitar(e.target.value)} 
+                            className="p-2 border border-slate-700 bg-slate-800 rounded-lg text-xs font-bold text-white focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                          />
+                        </div>
+                      ) : (
+                        <div className="flex-1">
+                          <p className="font-bold text-slate-200 text-xs leading-tight">{m.nome}</p>
+                          <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Matrícula/ID: {m.idMilitar}</p>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-1">
+                        {editingId === m.idDoc ? (
+                          <button 
+                            onClick={saveEdit} 
+                            className="text-emerald-400 p-2 hover:bg-emerald-500/10 rounded-lg transition-colors" 
+                            title="Salvar"
+                          >
+                            <Save size={16} />
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => startEdit(m)} 
+                            className="text-blue-400 p-2 hover:bg-blue-500/10 rounded-lg transition-colors" 
+                            title="Editar"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        
+                        <div className="flex flex-col">
+                          <button 
+                            onClick={() => moveUp(index)} 
+                            disabled={index === 0} 
+                            className={`p-0.5 rounded ${
+                              index === 0 
+                                ? 'text-slate-700 cursor-not-allowed' 
+                                : 'text-slate-400 hover:text-blue-400 hover:bg-slate-800 active:scale-90 transition-all'
+                            }`}
+                          >
+                            <ArrowUp size={12} />
+                          </button>
+                          <button 
+                            onClick={() => moveDown(index)} 
+                            disabled={index === militares.length - 1} 
+                            className={`p-0.5 rounded ${
+                              index === militares.length - 1 
+                                ? 'text-slate-700 cursor-not-allowed' 
+                                : 'text-slate-400 hover:text-blue-400 hover:bg-slate-800 active:scale-90 transition-all'
+                            }`}
+                          >
+                            <ArrowDown size={12} />
+                          </button>
+                        </div>
+
+                        <button 
+                          onClick={() => deleteMilitarLocal(m.idDoc)} 
+                          className="text-red-400 p-2 hover:bg-red-500/10 rounded-lg ml-1 transition-colors" 
+                          title="Excluir"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* --- MODAL DE ALERTAS GERAIS --- */}
+      <AnimatePresence>
+        {formAlert && (
+          <div className="fixed inset-0 bg-black/80 z-[300] flex items-center justify-center p-4 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              className="bg-slate-900 p-7 rounded-3xl shadow-2xl max-w-sm w-full text-center border border-slate-800"
+            >
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-500/10 text-blue-400 mb-4 border border-blue-500/20">
+                <AlertCircle size={24} />
+              </div>
+              <h3 className="text-lg font-black text-white mb-2">{formAlert.title}</h3>
+              <p className="text-slate-400 mb-6 text-xs leading-relaxed">{formAlert.message}</p>
+              <button 
+                onClick={() => setFormAlert(null)} 
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-xs active:scale-95 transition-all shadow-lg shadow-blue-500/25"
+              >
+                Entendido
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+    </div>
   );
 }
