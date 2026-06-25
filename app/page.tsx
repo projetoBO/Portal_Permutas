@@ -143,7 +143,7 @@ export default function Home() {
   const [localizacao, setLocalizacao] = useState("TURIAÇU");
   const [pmSubstituido, setPmSubstituido] = useState({ nome: "", id: "" });
   const [pmSubstituto, setPmSubstituto] = useState({ nome: "", id: "" });
-  const [comandante, setComandante] = useState("JOSE RIBAMAR BRAGA JUNIOR - 1º TEN QOPM");
+  const [comandante, setComandante] = useState("JOSE RIBAMAR BRAGA JUNIOR - 1º TEN QOEM");
   const [noPagamento, setNoPagamento] = useState(false);
   const [tipoServico, setTipoServico] = useState("24H");
 
